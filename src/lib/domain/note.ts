@@ -1,14 +1,7 @@
 import { type Result, Success, Failure } from './result';
 import { parseYaml, asString, isRecord, type Yaml } from './yaml';
-import type { GitlabToken, Repository, NoteRef } from './types';
-import { getNote, commitFile, createBranch, createMergeRequest } from '../services/git-service';
-
-/**
- * What a {@link Note.save} did. A clean save is `saved`; when a concurrent
- * edit was detected the change is diverted onto a branch and a merge
- * request is opened for the user to review/reconcile — its URL is returned.
- */
-export type SaveOutcome = { kind: 'saved' } | { kind: 'merge-request'; url: string };
+import type { NoteRef } from './types';
+import Asset, { type AssetSnapshot } from './asset';
 
 // ── Domain types ───────────────────────────────────────────────────
 // A note's frontmatter `tags` are ISA-style ontology annotations (the
@@ -31,8 +24,9 @@ export type OntologyAnnotation = {
 };
 
 /**
- * A note's full persistent state as a plain, JSON-serializable object — the
+ * A note's full persistent state as a plain, structured-cloneable object — the
  * form used to cache a note locally (e.g. in IndexedDB) and rehydrate it.
+ * (Asset bytes are `Blob`s, so it is clone-storable, not JSON-serializable.)
  * Unlike `toMarkdown`, it also carries the `baseCommitId` concurrency token,
  * so a cached note saves with the same conflict guarantees as a freshly
  * loaded one.
@@ -44,7 +38,7 @@ export type NoteSnapshot = {
 	/** Calendar day, `YYYY-MM-DD`. */
 	date: string;
 	tags: OntologyAnnotation[];
-	assets: string[];
+	assets: AssetSnapshot[];
 	baseCommitId: string | null;
 };
 
@@ -135,29 +129,31 @@ function asTags(value: Yaml | undefined): OntologyAnnotation[] {
 const FRONTMATTER = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/;
 
 /**
- * A single note: its frontmatter (title, date, ontology tags), its
- * markdown body and the asset file names beside it. This is the type the
- * rest of the app works with — it knows how to load and save itself
- * through the (pure) git-service, and how to (de)serialize its markdown.
+ * A single note: its frontmatter (title, date, ontology tags), its markdown
+ * body and the assets beside it. A pure domain value — it knows how to
+ * (de)serialize itself (markdown via {@link toMarkdown}/{@link fromMarkdown},
+ * cache snapshots via {@link toSnapshot}/{@link fromSnapshot}) but does no
+ * I/O; loading and syncing live in `NoteController`.
  *
- * Fields are mutable: edit `title`, `content`, `tags`, … in place and
- * call {@link save}. The one exception is {@link slug}, the on-disk
- * identity, which is fixed at creation. Instances can only be built via
- * {@link create}, {@link parse} or {@link load}, so a `Note` in memory
- * always has a valid slug and a real date.
+ * Fields are mutable: edit `title`, `content`, `tags`, … in place. The one
+ * exception is {@link slug}, the on-disk identity, which is fixed at creation.
+ * Instances can only be built via {@link create}, {@link fromMarkdown} or
+ * {@link fromSnapshot}, so a `Note` in memory always has a valid slug and a
+ * real date.
  */
 export default class Note {
 	title: string;
 	content: string;
 	date: Date;
 	tags: OntologyAnnotation[];
-	assets: string[];
+	assets: Asset[];
 	readonly slug: string;
 
-	// The commit this note's content was last in sync with on the server:
-	// set when loaded, refreshed after a clean save, and `null` for a note
-	// that has never been persisted. Used as the optimistic-concurrency
-	// guard in `save`. Private — it is bookkeeping, not part of the note.
+	// The commit this note's content was last in sync with on the server: set
+	// when built from a fetched file, carried through snapshots, and `null` for
+	// a note that has never been persisted. The controller passes it to GitLab
+	// as the optimistic-concurrency guard when syncing. Private — it is
+	// bookkeeping, not part of the note.
 	private baseCommitId: string | null = null;
 
 	private constructor(
@@ -165,7 +161,7 @@ export default class Note {
 		content: string,
 		date: Date,
 		tags: OntologyAnnotation[],
-		assets: string[],
+		assets: Asset[],
 		slug: string
 	) {
 		this.title = title;
@@ -220,7 +216,7 @@ export default class Note {
 		markdown: string,
 		slug: string,
 		fallbackDate: Date,
-		assets: string[] = []
+		assets: Asset[] = []
 	): Result<Note> {
 		if (!SLUG_PATTERN.test(slug)) return Failure(`"${slug}" is not a valid note slug.`);
 
@@ -243,104 +239,24 @@ export default class Note {
 	}
 
 	/**
-	 * Load an existing note from a repository: fetch its markdown through
-	 * the git-service and parse it. The slug is recovered from the file's
-	 * path on disk.
+	 * Build a note from raw markdown fetched from a repository. `ref` carries
+	 * the on-disk identity (slug from the folder, date fallback from the path)
+	 * and `baseCommitId` is the commit the content was fetched at — the
+	 * optimistic-concurrency guard a later sync uses. This does no I/O; the
+	 * caller fetches the bytes and this interprets them.
 	 */
-	static async load(token: GitlabToken, repo: Repository, ref: NoteRef): Promise<Result<Note>> {
-		const raw = await getNote(token, repo, ref);
-		if (!raw.success) return Failure(raw.error);
-
-		// For a note without frontmatter, the date comes from the path's
-		// date folder, or today if the path carries no recognisable date.
+	static fromMarkdown(markdown: string, ref: NoteRef, baseCommitId: string | null): Result<Note> {
+		// For a note without frontmatter, the date comes from the path's date
+		// folder, or today if the path carries no recognisable date.
 		const fallbackDate = dateFromPath(ref.path) ?? new Date();
-		const parsed = Note.parse(raw.value.content, slugFromPath(ref.path), fallbackDate);
+		const parsed = Note.parse(markdown, slugFromPath(ref.path), fallbackDate);
 		if (!parsed.success) return parsed;
 
-		parsed.value.baseCommitId = raw.value.lastCommitId;
+		parsed.value.baseCommitId = baseCommitId;
 		return parsed;
 	}
 
-	/**
-	 * Persist this note via the git-service, with optimistic concurrency.
-	 *
-	 * The normal path is a single guarded commit to the default branch. If
-	 * the note was changed on the server since it was loaded (or a note with
-	 * this path was created in the meantime), the write is diverted onto a
-	 * fresh branch and a merge request is opened so the user can review and
-	 * reconcile — see {@link SaveOutcome}.
-	 */
-	async save(token: GitlabToken, repo: Repository): Promise<Result<SaveOutcome>> {
-		const targetBranch = repo.default_branch ?? 'main';
-		// A never-persisted note (no base commit) is a create; otherwise the
-		// base commit guards the update against concurrent edits.
-		const outcome = await commitFile(token, repo, {
-			path: this.filePath,
-			content: this.toMarkdown(),
-			commitMessage: `Save note ${this.title}`,
-			branch: targetBranch,
-			mode: this.baseCommitId === null ? 'create' : 'update',
-			lastCommitId: this.baseCommitId ?? undefined
-		});
-
-		if (outcome.kind === 'error') return Failure(outcome.message);
-		if (outcome.kind === 'conflict') return this.divertToMergeRequest(token, repo, targetBranch);
-
-		// Clean save: re-sync the guard so the same instance can be saved
-		// again without a spurious conflict. Best-effort — a stale guard only
-		// costs an unnecessary merge request next time, never data loss.
-		await this.refreshBaseCommit(token, repo);
-		return Success({ kind: 'saved' });
-	}
-
-	// On conflict, land our version on a branch and open a merge request
-	// against the default branch. We branch from the commit we loaded from
-	// (`baseCommitId`) so the merge request is a true 3-way merge: GitLab
-	// auto-merges non-overlapping edits and only flags real conflicts. For a
-	// brand-new note that collided, there is no such base — we branch from
-	// the target tip and let the reviewer reconcile the two notes by hand.
-	private async divertToMergeRequest(
-		token: GitlabToken,
-		repo: Repository,
-		targetBranch: string
-	): Promise<Result<SaveOutcome>> {
-		const ref = this.baseCommitId ?? targetBranch;
-		const branchName = `note/${this.slug}-${Date.now().toString(36)}`;
-
-		const branched = await createBranch(token, repo, branchName, ref);
-		if (!branched.success) return Failure(branched.error);
-
-		// The file already exists on this branch (it is the conflicting
-		// version), so this is always an update; the branch has no other
-		// writer, so no guard is needed.
-		const committed = await commitFile(token, repo, {
-			path: this.filePath,
-			content: this.toMarkdown(),
-			commitMessage: `Save note ${this.title}`,
-			branch: branchName,
-			mode: 'update'
-		});
-		if (committed.kind !== 'committed') return Failure(committed.message);
-
-		const mr = await createMergeRequest(
-			token,
-			repo,
-			branchName,
-			targetBranch,
-			`Resolve edit conflict for note "${this.title}"`
-		);
-		if (!mr.success) return Failure(mr.error);
-
-		return Success({ kind: 'merge-request', url: mr.value.web_url });
-	}
-
-	// Re-read the file's last commit to keep the concurrency guard current.
-	private async refreshBaseCommit(token: GitlabToken, repo: Repository): Promise<void> {
-		const got = await getNote(token, repo, { name: `${this.slug}.md`, path: this.filePath });
-		if (got.success) this.baseCommitId = got.value.lastCommitId;
-	}
-
-	/** Serialize to a markdown file, the inverse of {@link parse}. */
+	/** Serialize to a markdown file, the inverse of {@link fromMarkdown}. */
 	toMarkdown(): string {
 		const lines = ['---', `title: ${this.title}`, `date: ${formatDate(this.date)}`];
 
@@ -370,6 +286,11 @@ export default class Note {
 		return `${lines.join('\n')}\n\n${this.content}\n`;
 	}
 
+	addAsset(asset: Asset): Result<Note> {
+	  this.assets.push(asset);
+		return Success(this);
+	}
+
 	// ── On-disk layout ────────────────────────────────────────────────
 	// notes/<date>/<slug>/<slug>.md  with assets under .../<slug>/assets/.
 
@@ -393,11 +314,6 @@ export default class Note {
 		return `${this.folderPath}/assets`;
 	}
 
-	/** Repo-relative path of a named asset. */
-	assetPath(name: string): string {
-		return `${this.assetsFolder}/${name}`;
-	}
-
 	/** A lightweight handle to this note — e.g. to key a cache or to reload it. */
 	toNoteRef(): NoteRef {
 		return { name: `${this.slug}.md`, path: this.filePath };
@@ -415,7 +331,7 @@ export default class Note {
 			content: this.content,
 			date: formatDate(this.date),
 			tags: this.tags,
-			assets: this.assets,
+			assets: this.assets.map((a) => a.toSnapshot()),
 			baseCommitId: this.baseCommitId
 		};
 	}
@@ -437,7 +353,7 @@ export default class Note {
 			snapshot.content,
 			date.value,
 			structuredClone(snapshot.tags),
-			[...snapshot.assets],
+			snapshot.assets.map((a) => Asset.fromSnapshot(a)),
 			snapshot.slug
 		);
 		note.baseCommitId = snapshot.baseCommitId;
