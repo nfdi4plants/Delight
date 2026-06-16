@@ -33,3 +33,15 @@ export type NoteRef = {
 	/** Path within the repository, e.g. "notes/sub/meeting.md". */
 	path: string;
 };
+
+/**
+ * A GitLab merge request, as opened when a save is diverted around an edit
+ * conflict. Only the fields the app surfaces are modelled.
+ */
+export type MergeRequest = {
+	iid: number;
+	web_url: string;
+	title: string;
+	source_branch: string;
+	target_branch: string;
+};
