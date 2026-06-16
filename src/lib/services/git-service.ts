@@ -1,5 +1,5 @@
 import type { GitlabToken, Repository, Note } from '../domain/types';
-import { type Result, Success, Failure, bind, bindAsync, map } from '../domain/result';
+import { type Result, Success, Failure, bindAsync, map } from '../domain/result';
 
 // Base URL of the GitLab instance. The `/api/v4` REST API lives below it.
 const BASE_URL = 'https://git.nfdi4plants.org';
@@ -44,19 +44,55 @@ async function request(
 
 // The boundary that lifts an HTTP response onto the Result rails: `fetch`
 // only rejects on network failure, so a non-2xx response still arrives as a
-// resolved `Response` that has to be classified here.
-function checkResponse(response: Response): Result<Response> {
+// resolved `Response` that has to be classified here. On failure we read the
+// body to surface GitLab's own reason; on success the body is left untouched
+// for the caller to consume.
+async function checkResponse(response: Response): Promise<Result<Response>> {
+	if (response.ok) return Success(response);
 	if (response.status === 401) {
 		return Failure('Authentication failed: the token is invalid or expired.');
 	}
-	return response.ok
-		? Success(response)
-		: Failure(`GitLab request failed with status ${response.status}.`);
+	const detail = await gitlabErrorMessage(response);
+	return Failure(
+		detail
+			? `GitLab request failed (${response.status}): ${detail}`
+			: `GitLab request failed with status ${response.status}.`
+	);
+}
+
+// GitLab error responses carry the reason in a JSON body, under `message`
+// (a string, or a field -> messages map for validation errors) or `error`.
+async function gitlabErrorMessage(response: Response): Promise<string | null> {
+	let body: unknown;
+	try {
+		body = await response.json();
+	} catch {
+		return null; // not a JSON body (e.g. an HTML error page)
+	}
+	if (typeof body !== 'object' || body === null) return null;
+	const raw = (body as Record<string, unknown>).message ?? (body as Record<string, unknown>).error;
+	if (raw === undefined) return null;
+	return flattenMessage(raw);
+}
+
+// GitLab's `message` can be a plain string, an array, or a validation map of
+// field -> messages (e.g. {"name":["has already been taken"]}). Flatten any
+// of these into a readable string, falling back to JSON for unknown shapes so
+// no structure is ever assumed.
+function flattenMessage(raw: unknown): string {
+	if (typeof raw === 'string') return raw;
+	if (Array.isArray(raw)) return raw.map(flattenMessage).join(', ');
+	if (typeof raw === 'object' && raw !== null) {
+		return Object.entries(raw)
+			.map(([field, value]) => `${field}: ${flattenMessage(value)}`)
+			.join('; ');
+	}
+	return JSON.stringify(raw);
 }
 
 /** GET a path, treating any non-2xx status as a `Failure`. */
 async function apiGet(path: string, token: GitlabToken): Promise<Result<Response>> {
-	return bind(await request('GET', path, token), checkResponse);
+	return bindAsync(request('GET', path, token), checkResponse);
 }
 
 // Body readers that turn a (possibly throwing) async read into a `Result`,
@@ -170,8 +206,8 @@ export async function createRepo(
 	name: string
 ): Promise<Result<Repository>> {
 	const created = await bindAsync(
-		bind(
-			await request('POST', '/projects', token, { name, initialize_with_readme: false }),
+		bindAsync(
+			request('POST', '/projects', token, { name, initialize_with_readme: false }),
 			checkResponse
 		),
 		(response) => readJson<Repository>(response)
@@ -212,13 +248,13 @@ export async function pushNote(
 	if (!probe.success) return Failure(probe.error);
 	// A 404 here is expected — it just means the note doesn't exist yet.
 	if (!probe.value.ok && probe.value.status !== 404) {
-		const checked = checkResponse(probe.value); // necessarily a Failure
+		const checked = await checkResponse(probe.value); // necessarily a Failure
 		if (!checked.success) return Failure(checked.error);
 	}
 
 	const method = probe.value.ok ? 'PUT' : 'POST';
-	const written = bind(
-		await request(method, `/projects/${repo.id}/repository/files/${filePath}`, token, {
+	const written = await bindAsync(
+		request(method, `/projects/${repo.id}/repository/files/${filePath}`, token, {
 			branch,
 			content,
 			commit_message: commitMessage
