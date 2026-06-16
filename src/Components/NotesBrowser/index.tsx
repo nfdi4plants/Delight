@@ -134,7 +134,7 @@ function Metadata({repository, listNotes}: {repository: Repository, listNotes: (
                     <i className="iconify mdi--arrow-left-bold-box-outline size-5"></i>
                 </button>
                 <button 
-                    className="btn btn-sm btn-square" 
+                    className="btn btn-sm btn-square btn-secondary"
                     onClick={() => listNotes(true)}
                     title="Refresh notes list"
                     aria-label="Refresh notes list"
