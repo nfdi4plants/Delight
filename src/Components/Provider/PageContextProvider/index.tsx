@@ -1,17 +1,19 @@
-import {PageContext} from "../../../Contexts/PageContext";
+import {PageContext, type PageState} from "../../../Contexts/PageContext";
 import {useState} from "react";
 import {type PageContextType} from "../../../Contexts/PageContext";
 import useTokenContext from "../../../Contexts/TokenContext";
 import useNotesStateContext, { type NotesState } from "../../../Contexts/NotesStateContext";
 import type { GitlabToken, NoteRef } from "../../../lib/domain/types";
 import useActiveNoteContext from "../../../Contexts/ActiveNoteContext";
+import { useErrorContext } from "../../../Contexts/ErrorContext";
 
 
 export default function PageContextProvider({ children }: { children: React.ReactNode }) {
-    const [page, setPage] = useState<PageContextType["page"]>("authentication");
-    const {setToken} = useTokenContext()
-    const {setNotes} = useNotesStateContext()
-    const {setActiveNote} = useActiveNoteContext()
+    const [page, setPage] = useState<PageState>("authentication");
+    const {token, setToken} = useTokenContext()
+    const {setError} = useErrorContext()
+    const {notes, setNotes} = useNotesStateContext()
+    const {activeNote, setActiveNote} = useActiveNoteContext()
 
     const setTokenAndNavigate = (token: GitlabToken) => {
         setToken(token)
@@ -34,13 +36,30 @@ export default function PageContextProvider({ children }: { children: React.Reac
         setPage("authentication")
     }
 
+    const handleNavigate = (page: PageState) => {
+        if (token === null && page !== "authentication") {
+            setError("You must be authenticated to access this page: " + page + ".")
+            return
+        }
+        if (notes === null && page === "notes-browser") {
+            setError("You must have a repository selected to access this page: " + page + ".")
+            return
+        }
+        if (activeNote === null && page === "note-editor") {
+            setError("You must have an active note selected to access this page: " + page + ".")
+            return
+        }
+        setPage(page)
+    }
+
 
     const context = {
         page,
         setToken: setTokenAndNavigate,
         setRepository: setRepositoryAndNavigate,
         setActiveNote: setActiveNoteAndNavigate,
-        logout: logoutAndNavigate
+        logout: logoutAndNavigate,
+        setPage: handleNavigate
     }
 
     return (

@@ -6,6 +6,7 @@ import useErrorContext from "../../Contexts/ErrorContext";
 import { type Repository, type NoteRef } from "../../lib/domain/types";
 import Note from "../../lib/domain/note";
 import { NotesTitlePattern } from "../../lib/services/notes";
+import usePageContext from "../../Contexts/PageContext";
 
 function CreateNoteModal({isOpen, setIsOpen}: {isOpen: boolean, setIsOpen: (isOpen: boolean) => void}) {
     const [input, setInput] = React.useState("")
@@ -94,9 +95,16 @@ function NotesBrowserList({notes}: {notes: NoteRef[]}) {
 }
 
 function Metadata({repository}: {repository: Repository}) {
+    const {setPage} = usePageContext()
+
     return (
         <div className="flex flex-col p-2 gap-1">
-            <h1 className="text-2xl font-bold">{repository.name}</h1>
+            <div className="flex items-center gap-4">
+                <button className="btn btn-sm btn-square btn-primary" onClick={() => setPage("arc-browser")}>
+                    <i className="iconify mdi--arrow-left-bold-box-outline size-5"></i>
+                </button>
+                <h1 className="text-2xl font-bold">{repository.name}</h1>
+            </div>
             {repository.description && <p className="text-sm opacity-70">{repository.description}</p>}
         </div>
     )
@@ -105,13 +113,19 @@ function Metadata({repository}: {repository: Repository}) {
 export default function NotesBrowser() {
     const { notes } = useNotesStateContext()
 
-    if (!notes) return null
-
     return (
         <div className="h-full w-full">
-            <Metadata repository={notes.repository} />
-            <NotesBrowserList notes={notes.notes} />
-            <Dock />
+            {!notes ?
+                <div className="flex flex-col items-center gap-4 py-8">
+                    <div className="text-2xl opacity-60">No repository connected</div>
+                    <div className="text-sm opacity-40">Connect a repository to get started</div>
+                </div> :
+                <>
+                    <Metadata repository={notes.repository} />
+                    <NotesBrowserList notes={notes.notes} />
+                    <Dock />
+                </>
+            }   
         </div>
     )
 }

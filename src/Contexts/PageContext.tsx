@@ -14,6 +14,7 @@ export type PageContextType = {
     setActiveNote: (note: NoteRef) => void
     setRepository: (repository: NotesState) => void
     logout: () => void
+    setPage: (page: PageState) => void
 }
 
 export const PageContext = createContext<PageContextType>({
@@ -21,7 +22,8 @@ export const PageContext = createContext<PageContextType>({
     setToken: () => {},
     setRepository: () => {},
     setActiveNote: () => {},
-    logout: () => {}
+    logout: () => {},
+    setPage: () => {}
 })
 
 const usePageContext = () => useContext(PageContext);

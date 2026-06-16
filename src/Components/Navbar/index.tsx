@@ -3,7 +3,7 @@ import Title from "../Title"
 
 export default function Navbar({ drawerId }: { drawerId: string }) {
     return (
-        <div className="navbar w-full bg-primary text-primary-content h-fit min-h-0 p-1">
+        <div className="navbar w-full bg-primary text-primary-content h-fit min-h-fit p-1">
             <div className="flex flex-1 items-center">
                 <Title className="px-2" />
                 <a className="btn btn-sm btn-square ml-auto" href={URLs.GITHUB_REPO} target="_blank" rel="noopener noreferrer">
