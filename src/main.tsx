@@ -3,18 +3,12 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import './tailwind.css'
 import App from './App.tsx'
-import TokenContextProvider from './Components/Provider/TokenContextProvider/index.tsx'
-import ErrorContextProvider from './Components/Provider/ErrorContextProvider'
-import NotesStateContextProvider from './Components/Provider/NotesStateContextProvider'
+import ContextProvider from "./Components/Provider";
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <ErrorContextProvider>
-      <TokenContextProvider>
-        <NotesStateContextProvider>
-          <App />
-        </NotesStateContextProvider>
-      </TokenContextProvider>
-    </ErrorContextProvider>
+    <ContextProvider>
+      <App />
+    </ContextProvider>
   </StrictMode>,
 )

@@ -1,8 +1,9 @@
 import {createContext, useContext} from 'react'
+import type { GitlabToken } from '../lib/domain/types'
 
 type TokenContextType = {
-    token: string | null
-    setToken: (token: string | null) => void
+    token: GitlabToken | null
+    setToken: (token: GitlabToken | null) => void
 }
 
 export const TokenContext = createContext<TokenContextType>({

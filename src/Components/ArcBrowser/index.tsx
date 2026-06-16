@@ -5,8 +5,8 @@ import useTokenContext from "../../Contexts/TokenContext";
 import { type GitlabToken } from "../../lib/domain/types";
 import { useErrorContext } from "../../Contexts/ErrorContext";
 import { type Repository } from "../../lib/domain/types";
-import useNotesStateContext from "../../Contexts/NotesStateContext";
 import BaseModal from "../BaseModal";
+import usePageContext from "../../Contexts/PageContext";
 
 interface ArcBrowserListItemProps {
     repository: Repository;
@@ -16,8 +16,8 @@ function ArcBrowserListItem({ repository }: ArcBrowserListItemProps) {
     const [isConnecting, setIsConnecting] = React.useState(false)
     const { name, description, avatar_url } = repository;
     const { token } = useTokenContext()
-    const {setNotes} = useNotesStateContext()
     const {setError} = useErrorContext()
+    const {setRepository} = usePageContext()
 
     const connect = async () => {
         setIsConnecting(true)
@@ -28,7 +28,7 @@ function ArcBrowserListItem({ repository }: ArcBrowserListItemProps) {
                 repository,
                 notes: response.value
             }
-            setNotes(v)
+            setRepository(v)
         } else if (response.error) {
             setError(response.error)
         }
@@ -75,7 +75,7 @@ function EmptyView() {
 function ArcBrowserList({repos}: {repos: Repository[]}) {
 
     return (
-        <ul className="list max-w-md mx-auto">
+        <ul className="list max-w-md mx-auto overflow-y-auto pb-48">
     
             <li className="p-4 pb-2 text-xs opacity-60 tracking-wide">Your ARCs</li>
             
@@ -88,14 +88,14 @@ function CreateArcModal({isOpen, setIsOpen}: {isOpen: boolean, setIsOpen: (isOpe
     const [input, setInput] = React.useState("")
     const {token} = useTokenContext()
     const {setError} = useErrorContext()
-    const {setNotes} = useNotesStateContext()
+    const {setRepository} = usePageContext()
 
     const createArc = async () => {
         const repository = await gitlabApi.createRepo(token as GitlabToken, input)
         if (repository.success) {
             const notesResponse = await gitlabApi.listNotes(token as GitlabToken, repository.value)
             if (notesResponse.success) {
-                setNotes({
+                setRepository({
                     repository: repository.value,
                     notes: notesResponse.value
                 })
