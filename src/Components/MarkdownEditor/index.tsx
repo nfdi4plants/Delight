@@ -1,32 +1,44 @@
 import React from "react";
-import MDEditor from '@uiw/react-md-editor';
+import MDEditor, { commands } from '@uiw/react-md-editor';
 import rehypeSanitize from "rehype-sanitize";
 import useActiveNoteContext from "../../Contexts/ActiveNoteContext";
 import useNoteControllerContext from "../../Contexts/NoteControllerContext";
+import BackButton from "../BackButton";
+import SyncButton from "../SyncButton";
 
-export default function App() {
+export default function NoteEditor() {
     const {activeNote} = useActiveNoteContext();
-    // const {saveNote} = useNoteControllerContext();
-    const [value, setValue] = React.useState<string>(`**Hello world!!!** <IFRAME SRC=\"javascript:javascript:alert(window.origin);\"></IFRAME>`);
-    const editorRef = React.useRef<HTMLDivElement>(null);
-    const getCursorPos = () => {
-        const textarea = editorRef.current?.querySelector("textarea");
-        console.log(textarea?.selectionStart);
-    };
+    const {saveNote} = useNoteControllerContext();
+    const [value, setValue] = React.useState<string>(activeNote ? activeNote.content : "");
+
+    const handleOnChange = async (value_?: string) => {
+        const value = value_ || "";
+        setValue(value);
+    }
+
+    const handleBeforePageChange = () => {
+        if (!activeNote) return;
+        saveNote(activeNote.title, activeNote.slug, value)
+    }
 
     return (
-        <div className="container">
-            <button 
-                onClick={getCursorPos}>
-                    Get Cursor Position
-            </button>
+        <div className="h-full overflow-hidden">
+            <div className="flex items-center gap-2 p-2">
+                <BackButton targetPage="notes-browser" beforePageChange={handleBeforePageChange} />
+                <SyncButton />
+            </div>
             <MDEditor
-                ref={editorRef}
                 value={value}
-                onChange={e => setValue(e || "")}
+                onChange={handleOnChange}
                 previewOptions={{
                     rehypePlugins: [[rehypeSanitize]],
                 }}
+                preview={"edit"}
+                extraCommands={[
+                    commands.codeEdit,
+                    commands.codePreview,
+                ]}
+                height="100%"
             />
         </div>
     );
