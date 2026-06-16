@@ -379,4 +379,9 @@ export default class Note {
 	assetPath(name: string): string {
 		return `${this.assetsFolder}/${name}`;
 	}
+
+	/** A lightweight handle to this note — e.g. to key a cache or to reload it. */
+	toNoteRef(): NoteRef {
+		return { name: `${this.slug}.md`, path: this.filePath };
+	}
 }
