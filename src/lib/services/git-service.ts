@@ -2,8 +2,8 @@ import type { GitlabToken, Repository, NoteRef, MergeRequest } from '../domain/t
 import { type Result, Success, Failure, bindAsync, map } from '../domain/result';
 
 // Base URL of the GitLab instance. The `/api/v4` REST API lives below it.
-const BASE_URL = 'https://git.nfdi4plants.org';
-const API_URL = `${BASE_URL}/api/v4`;
+export const BASE_URL = 'https://git.nfdi4plants.org';
+export const API_URL = `${BASE_URL}/api/v4`;
 
 // Raw shape of a GitLab repository-tree entry. Private to this module:
 // `listNotes` maps it down to the frontend-facing `NoteRef`.
