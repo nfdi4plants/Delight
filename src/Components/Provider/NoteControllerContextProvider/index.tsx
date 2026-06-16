@@ -4,6 +4,7 @@ import { type NoteRef, type Repository } from "../../../lib/domain/types";
 import NoteController from "../../../lib/services/note-controller";
 import useTokenContext from "../../../Contexts/TokenContext";
 import { useErrorContext } from "../../../Contexts/ErrorContext";
+import Note from "../../../lib/domain/note";
 
 type RepoController = Map<number, NoteController>; // Map from repository ID to its NoteController
 
@@ -27,21 +28,28 @@ export default function NotesStateContextProvider({ children }: { children: Reac
     const context: NoteControllerContextType = {
         activeRepository,
         setActiveRepository,
-        listNotes: async (refresh = false) => {
+        getList: async () => {
             const controller = ensureController(activeRepository);
-            return controller.list({ refresh });
+            return controller.getList();
         },
         getNote: async (noteRef: NoteRef) => {
             const controller = ensureController(activeRepository);
             return controller.getNote(noteRef);
         },
-        createLocalNote: async (name: string, slug: string, content?: string) => {
+        saveNote: async (name: string, slug: string, content_?: string) => {
+            const content = content_ || "";
             const controller = ensureController(activeRepository);
-            return controller.createNote(name, slug, { content });
+            const note = Note.create(name, slug, content);
+            if (note.success) {
+                await controller.saveNote(note.value);
+            } else {
+                setError(note.error);
+            }
+            return note;
         },
         syncAll: async () => {
             const controller = ensureController(activeRepository);
-            return controller.saveAll();
+            return controller.sync();
         }
     }
 

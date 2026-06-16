@@ -11,7 +11,7 @@ import SyncButton from "../SyncButton";
 function CreateNoteModal({isOpen, setIsOpen}: {isOpen: boolean, setIsOpen: (isOpen: boolean) => void}) {
     const [input, setInput] = React.useState("")
     const [slug, setSlug] = React.useState("")
-    const {createLocalNote} = useNoteControllerContext()
+    const {saveNote} = useNoteControllerContext()
     const {setError} = useErrorContext();
     const {setActiveNote} = usePageContext();
 
@@ -29,7 +29,7 @@ function CreateNoteModal({isOpen, setIsOpen}: {isOpen: boolean, setIsOpen: (isOp
 
     const createNote = async () => {
         if (!isValid) return;
-        const response = await createLocalNote(input, slug, `# ${input}`)
+        const response = await saveNote(input, slug, `# ${input}`)
         if (response.success) {
             setActiveNote(response.value)
         } else {
@@ -145,11 +145,11 @@ export default function NotesBrowser() {
     const [notes, setNotes] = React.useState<NoteRef[]>([])
     const {setError} = useErrorContext()
     const [isLoading, setIsLoading] = React.useState(true)
-    const {activeRepository, listNotes} = useNoteControllerContext()
+    const {activeRepository, getList: listNotes} = useNoteControllerContext()
 
-    const fetchNotes = async (refresh?: boolean) => {
+    const fetchNotes = async () => {
         setIsLoading(true)
-        const response = await listNotes(refresh)
+        const response = await listNotes()
         if (response.success) {
             setNotes(response.value)
         } else {
