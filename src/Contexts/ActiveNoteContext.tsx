@@ -1,9 +1,9 @@
 import {createContext, useContext} from "react";
-import type { Note } from "../lib/domain/types";
+import type { NoteRef } from "../lib/domain/types";
 
 export type ActiveNoteContextType = {
-    activeNote: Note | null;
-    setActiveNote: (note: Note | null) => void;
+    activeNote: NoteRef | null;
+    setActiveNote: (note: NoteRef | null) => void;
 }
 
 export const ActiveNoteContext = createContext<ActiveNoteContextType>({

@@ -12,10 +12,12 @@ function App() {
   return (
       <Layout>
         {
-          page.type === "authentication" ? <AuthenticateForm /> :
-          page.type === "arc-browser" ? <ArcBrowser /> :
-          page.type === "notes-browser" ? <NotesBrowser /> :
-          null
+          page === "authentication" ? <AuthenticateForm /> :
+          page === "arc-browser" ? <ArcBrowser /> :
+          page === "notes-browser" ? <NotesBrowser /> :
+          <div className="flex flex-col items-center justify-center h-full">
+            <h1 className="text-2xl font-bold">Page not found</h1>
+          </div>
         }
       </Layout>
   )

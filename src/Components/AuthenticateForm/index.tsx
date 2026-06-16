@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import useTokenContext from '../../Contexts/TokenContext'
 import useErrorContext from '../../Contexts/ErrorContext'
 import usePageContext from '../../Contexts/PageContext'
 import {validateToken} from '../../lib/services/git-service'
@@ -7,16 +6,14 @@ import {type GitlabToken} from '../../lib/domain/types'
 
 export default function AuthenticateForm() {
     const [token, setToken] = useState('')
-    const { setToken: setGlobalToken } = useTokenContext()
     const { setError } = useErrorContext()
-    const { setPage } = usePageContext()
+    const { setToken: setGlobalToken } = usePageContext()
 
     const submit = async () => {
         const gitlabToken = token as GitlabToken
         const isValid = await validateToken(gitlabToken)
-        if (isValid) {
+        if (isValid.success) {
             setGlobalToken(gitlabToken)
-            setPage({ type: 'arc-browser' })
         } else {
             setError('Invalid token')
         }

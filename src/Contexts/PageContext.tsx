@@ -1,5 +1,5 @@
 import {createContext, useContext} from "react";
-import type { GitlabToken, Note } from "../lib/domain/types";
+import type { GitlabToken, NoteRef } from "../lib/domain/types";
 import type { NotesState } from "./NotesStateContext";
 
 export type PageState =
@@ -11,7 +11,7 @@ export type PageState =
 export type PageContextType = {
     page: PageState
     setToken: (token: GitlabToken) => void
-    setActiveNote: (note: Note) => void
+    setActiveNote: (note: NoteRef) => void
     setRepository: (repository: NotesState) => void
     logout: () => void
 }

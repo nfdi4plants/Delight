@@ -1,15 +1,12 @@
 import Navbar from '../Navbar'
-import useTokenContext from '../../Contexts/TokenContext'
-import useNotesStateContext from '../../Contexts/NotesStateContext'
 import Title from '../Title'
+import usePageContext from '../../Contexts/PageContext'
 
 function LogoutButton() {
-    const { setToken } = useTokenContext()
-    const { setNotes } = useNotesStateContext()
+    const { logout } = usePageContext()
 
     const handleLogout = () => {
-        setNotes(null)
-        setToken(null)
+        logout()
         // close the drawer if it's open
         const drawer = document.getElementById("app-drawer") as HTMLInputElement | null;
         if (drawer && drawer.checked) {

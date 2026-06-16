@@ -3,9 +3,9 @@ import BaseModal from "../BaseModal";
 import useNotesStateContext from "../../Contexts/NotesStateContext";
 import useTokenContext from "../../Contexts/TokenContext";
 import useErrorContext from "../../Contexts/ErrorContext";
-import { type Repository, type Note } from "../../lib/domain/types";
-import * as gitlabApi from "../../lib/services/git-service";
-import { getNotesPath, NotesTitlePattern } from "../../lib/services/notes";
+import { type Repository, type NoteRef } from "../../lib/domain/types";
+import Note from "../../lib/domain/note";
+import { NotesTitlePattern } from "../../lib/services/notes";
 
 function CreateNoteModal({isOpen, setIsOpen}: {isOpen: boolean, setIsOpen: (isOpen: boolean) => void}) {
     const [input, setInput] = React.useState("")
@@ -16,16 +16,8 @@ function CreateNoteModal({isOpen, setIsOpen}: {isOpen: boolean, setIsOpen: (isOp
     const isValid = NotesTitlePattern.test(input)
 
     const createNote = async () => {
-        if (!token) return setError("No token found")
-        if (!notes) return setError("No repository found")
-        if (!input) return setError("Note name cannot be empty")
-        if (!isValid) return setError("Invalid note name. Note names must be alphanumeric, can only contain letters, numbers and dashes.")
-        const repo = notes?.repository
-        const path = getNotesPath(input)
-        const response = await gitlabApi.pushNote(token, repo, path, `# ${input}`, `Create note ${input}`)
-        if (!response.success) {
-            setError(`Error creating note: ${response.error}`)
-        }
+        const note = Note.create(input, `# ${input}`)
+        
     }
 
     return (
@@ -73,7 +65,7 @@ function Dock() {
     )
 }
 
-function NotesBrowserListItem({note}: {note: Note}) {
+function NotesBrowserListItem({note}: {note: NoteRef}) {
     return (
         <li className="list-row">
             <div>{note.name}</div>
@@ -82,7 +74,7 @@ function NotesBrowserListItem({note}: {note: Note}) {
     )
 }
 
-function NotesBrowserList({notes}: {notes: Note[]}) {
+function NotesBrowserList({notes}: {notes: NoteRef[]}) {
 
     return (
         <ul className="list max-w-md mx-auto grow overflow-y-auto">
