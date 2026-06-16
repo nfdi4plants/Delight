@@ -220,6 +220,60 @@ export async function getNote(
 }
 
 /**
+ * List the files (blobs) directly under `path` in the repository — e.g. a
+ * note's `assets/` folder. Subfolders are ignored. A missing folder surfaces
+ * as a `Failure` (GitLab returns 404), which callers treat as "no files".
+ */
+export async function listFiles(
+	token: GitlabToken,
+	repo: Repository,
+	path: string
+): Promise<Result<NoteRef[]>> {
+	const tree = await apiGetAll<TreeEntry>(
+		`/projects/${repo.id}/repository/tree?path=${encodeURIComponent(path)}`,
+		token
+	);
+	if (!tree.success) return Failure(tree.error);
+
+	const files = tree.value
+		.filter((e) => e.type === 'blob')
+		.map((e) => ({ name: e.name, path: e.path }));
+	return Success(files);
+}
+
+/** A binary file's bytes together with its version token. */
+export type FileBlob = {
+	blob: Blob;
+	lastCommitId: string | null;
+};
+
+/**
+ * Fetch a file's raw bytes as a `Blob` (with its MIME type from the response),
+ * along with the commit it was last modified at. Use this for binary assets;
+ * {@link getNote} reads text.
+ */
+export async function getFileBlob(
+	token: GitlabToken,
+	repo: Repository,
+	path: string
+): Promise<Result<FileBlob>> {
+	const ref = repo.default_branch ?? 'main';
+	const filePath = encodeURIComponent(path);
+	const url = `/projects/${repo.id}/repository/files/${filePath}/raw?ref=${encodeURIComponent(ref)}`;
+
+	const got = await apiGet(url, token);
+	if (!got.success) return Failure(got.error);
+
+	try {
+		const blob = await got.value.blob();
+		return Success({ blob, lastCommitId: got.value.headers.get('x-gitlab-last-commit-id') });
+	} catch (cause) {
+		const message = cause instanceof Error ? cause.message : String(cause);
+		return Failure(`Could not read asset bytes: ${message}`);
+	}
+}
+
+/**
  * Create a new project containing an (otherwise empty) `notes/` folder.
  * Git cannot track empty directories, so the folder is seeded with a
  * `.gitkeep` placeholder. Returns the created repository.
@@ -288,80 +342,77 @@ export async function pushNote(
 }
 
 // ── Conflict-aware writes ──────────────────────────────────────────
-// Lower-level primitives that let a caller (the Note class) implement
-// optimistic concurrency: commit with a version guard, and — when that
-// guard trips — divert the change onto a branch + merge request.
+// Primitives that let the caller (NoteController) implement optimistic
+// concurrency: commit a batch with per-file version guards, and — when a
+// guard trips — divert the batch onto a branch + merge request.
 
 /**
- * The outcome of a single guarded commit. A `conflict` is the expected,
- * recoverable case (the file already exists on create, or changed since
- * `lastCommitId` on update); `error` is anything else.
+ * The outcome of a guarded commit. A `conflict` is the expected, recoverable
+ * case (a file already exists on create, or changed since its `lastCommitId`
+ * on update); `error` is anything else.
  */
 export type CommitOutcome =
 	| { kind: 'committed' }
 	| { kind: 'conflict'; message: string }
 	| { kind: 'error'; message: string };
 
+/** One file change within a {@link commitFiles} commit. */
+export type CommitAction = {
+	action: 'create' | 'update';
+	filePath: string;
+	content: string;
+	/** How `content` is encoded. Defaults to `text`; use `base64` for binary (assets). */
+	encoding?: 'text' | 'base64';
+	/** Guard for `update`: GitLab rejects the commit if the file changed since this commit. */
+	lastCommitId?: string;
+};
+
 /**
- * Commit `content` to a single file on `branch` in one request.
+ * Commit several file changes as a single commit via the Commits API.
  *
- * `mode` selects create (POST) vs update (PUT); on an update you may pass
- * `lastCommitId` to make the write conditional — GitLab rejects it if the
- * file changed since that commit. GitLab signals both "already exists"
- * (create) and "changed since `last_commit_id`" (update) with `400`; since
- * our payload is always well-formed, a `400` on these calls is treated as a
- * concurrency conflict rather than a malformed request.
+ * Each `update` action may carry its own `lastCommitId`, so the one commit is
+ * guarded per file — if any file changed since the caller loaded it, GitLab
+ * rejects the whole commit (atomic, all-or-nothing). Pass `startBranch` to
+ * create `branch` from it in the same request (used to land the batch on a
+ * fresh branch when diverting around a conflict). GitLab signals a stale
+ * guard (or a create whose file already exists) with `400`; since our payload
+ * is always well-formed, a `400` here is treated as a concurrency conflict.
  */
-export async function commitFile(
+export async function commitFiles(
 	token: GitlabToken,
 	repo: Repository,
 	params: {
-		path: string;
-		content: string;
-		commitMessage: string;
 		branch: string;
-		mode: 'create' | 'update';
-		lastCommitId?: string;
+		commitMessage: string;
+		actions: CommitAction[];
+		startBranch?: string;
 	}
 ): Promise<CommitOutcome> {
-	const filePath = encodeURIComponent(params.path);
-	const method = params.mode === 'create' ? 'POST' : 'PUT';
 	const body: Record<string, unknown> = {
 		branch: params.branch,
-		content: params.content,
-		commit_message: params.commitMessage
+		commit_message: params.commitMessage,
+		...(params.startBranch ? { start_branch: params.startBranch } : {}),
+		actions: params.actions.map((a) => ({
+			action: a.action,
+			file_path: a.filePath,
+			content: a.content,
+			...(a.encoding ? { encoding: a.encoding } : {}),
+			...(a.lastCommitId ? { last_commit_id: a.lastCommitId } : {})
+		}))
 	};
-	if (params.mode === 'update' && params.lastCommitId) {
-		body.last_commit_id = params.lastCommitId;
-	}
 
-	const written = await request(method, `/projects/${repo.id}/repository/files/${filePath}`, token, body);
+	const written = await request('POST', `/projects/${repo.id}/repository/commits`, token, body);
 	if (!written.success) return { kind: 'error', message: written.error };
 
 	const response = written.value;
 	if (response.ok) return { kind: 'committed' };
 	if (response.status === 400) {
 		const detail = await gitlabErrorMessage(response);
-		return { kind: 'conflict', message: detail ?? 'The file changed on the server since it was loaded.' };
+		return { kind: 'conflict', message: detail ?? 'A file changed on the server since it was loaded.' };
 	}
 
-	const checked = await checkResponse(response); // classify 401 and the rest
+	const checked = await checkResponse(response);
 	return { kind: 'error', message: checked.success ? `Unexpected status ${response.status}.` : checked.error };
-}
-
-/** Create a branch named `branch` pointing at `ref` (a branch name or commit SHA). */
-export async function createBranch(
-	token: GitlabToken,
-	repo: Repository,
-	branch: string,
-	ref: string
-): Promise<Result<null>> {
-	const query = `branch=${encodeURIComponent(branch)}&ref=${encodeURIComponent(ref)}`;
-	const created = await bindAsync(
-		request('POST', `/projects/${repo.id}/repository/branches?${query}`, token),
-		checkResponse
-	);
-	return map(created, () => null);
 }
 
 /** Open a merge request from `source` into `target`, returning its details. */
