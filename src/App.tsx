@@ -3,6 +3,7 @@ import './App.css'
 import Layout from './Components/Layout'
 import AuthenticateForm from './Components/AuthenticateForm'
 import {TokenContext} from './Contexts/TokenContext'
+import {ErrorContext} from './Contexts/ErrorContext'
 
 
 function App() {
