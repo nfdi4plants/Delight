@@ -1,25 +1,21 @@
-import { useContext } from 'react'
 import './App.css'
 import Layout from './Components/Layout'
 import AuthenticateForm from './Components/AuthenticateForm'
-import {TokenContext} from './Contexts/TokenContext'
-import useNotesStateContext from './Contexts/NotesStateContext'
+import usePageContext from './Contexts/PageContext'
 import ArcBrowser from './Components/ArcBrowser'
 import NotesBrowser from './Components/NotesBrowser'
 
 
 function App() {
-  const { token } = useContext(TokenContext)
-  const { notes } = useNotesStateContext()
+  const { page } = usePageContext();
 
   return (
       <Layout>
-        {token === null ?
-          <AuthenticateForm /> :
-          notes === null ?
-            <ArcBrowser /> :
-            <NotesBrowser />
-
+        {
+          page.type === "authentication" ? <AuthenticateForm /> :
+          page.type === "arc-browser" ? <ArcBrowser /> :
+          page.type === "notes-browser" ? <NotesBrowser /> :
+          null
         }
       </Layout>
   )

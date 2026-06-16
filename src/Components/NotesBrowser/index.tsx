@@ -22,8 +22,7 @@ function CreateNoteModal({isOpen, setIsOpen}: {isOpen: boolean, setIsOpen: (isOp
         if (!isValid) return setError("Invalid note name. Note names must be alphanumeric, can only contain letters, numbers and dashes.")
         const repo = notes?.repository
         const path = getNotesPath(input)
-        console.log(path)
-        const response = await gitlabApi.pushNote(token, repo, path, "", `Create note ${input}`)
+        const response = await gitlabApi.pushNote(token, repo, path, `# ${input}`, `Create note ${input}`)
         if (!response.success) {
             setError(`Error creating note: ${response.error}`)
         }
