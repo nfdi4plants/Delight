@@ -10,6 +10,7 @@ import type { Result } from "../../lib/domain/result";
 
 export default function NoteEditor() {
     const {activeNote} = useActiveNoteContext();
+
     const {saveNote} = useNoteControllerContext();
     const [value, setValue] = React.useState<string>(activeNote ? activeNote.content : "");
 
@@ -35,6 +36,7 @@ export default function NoteEditor() {
         <div className="h-full overflow-hidden flex flex-col">
             <div className="flex items-center gap-2 p-2">
                 <BackButton targetPage="notes-browser" beforePageChange={handleBeforePageChange} />
+                <h1 className="text-2xl font-bold">{activeNote ? activeNote.title : "New Note"}</h1>
                 <SyncButton beforeSubmit={handleBeforeSubmit} />
             </div>
             <MDEditor

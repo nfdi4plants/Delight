@@ -7,9 +7,19 @@ import { useErrorContext } from "../../Contexts/ErrorContext";
 import { type Repository } from "../../lib/domain/types";
 import BaseModal from "../BaseModal";
 import usePageContext from "../../Contexts/PageContext";
+import OpenExternalRepoButton from "../OpenExternalRepoButton";
 
 interface ArcBrowserListItemProps {
     repository: Repository;
+}
+
+function Avatar({url, letter}: {url: string | null, letter?: string}) {
+    if (!url) {
+        return <div className="size-10 rounded-box bg-base-300 flex items-center justify-center">
+            <p className="uppercase text-lg">{letter}</p>
+        </div>
+    }
+    return <img className="size-10 rounded-box" src={url || undefined} />
 }
 
 function ArcBrowserListItem({ repository }: ArcBrowserListItemProps) {
@@ -20,16 +30,21 @@ function ArcBrowserListItem({ repository }: ArcBrowserListItemProps) {
         setRepository(repository)
     }
     return (
-        <li className="list-row">
+        <li 
+            className="list-row cursor-pointer hover:bg-base-200"
+            onClick={connect}
+        >
             <div>
-                <img className="size-10 rounded-box" src={avatar_url || undefined}/></div>
+                <Avatar url={avatar_url} letter={name[0]} />
+            </div>
             <div>
             <div>{name}</div>
             <div className="text-xs uppercase font-semibold opacity-60">{description}</div>
             </div>
-            <button className="btn btn-square btn-accent" onClick={connect}>
+            {/* <button className="btn btn-square btn-accent" onClick={connect}>
                 <i className="iconify mdi--link-variant size-8"/>
-            </button>
+            </button> */}
+            <OpenExternalRepoButton repository={repository} className={{icon: "size-5!"}} />
         </li>
     )
 }
