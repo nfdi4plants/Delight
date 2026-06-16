@@ -1,5 +1,4 @@
-import {createContext} from 'react'
-import { useLocalStorage } from "@uidotdev/usehooks";
+import {createContext, useContext} from 'react'
 
 type TokenContextType = {
     token: string | null
@@ -11,12 +10,6 @@ export const TokenContext = createContext<TokenContextType>({
     setToken: () => {},
 })
 
-export default function TokenContextProvider({ children }: { children: React.ReactNode }) {
-    const [token, setToken] = useLocalStorage<string | null>('token', null)
+export const useTokenContext = () => useContext(TokenContext)
 
-    return (
-        <TokenContext value={{ token, setToken }}>
-            {children}
-        </TokenContext>
-    )
-}
+export default useTokenContext
