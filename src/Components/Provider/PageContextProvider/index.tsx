@@ -1,6 +1,5 @@
 import {PageContext, type PageState} from "../../../Contexts/PageContext";
 import {useState} from "react";
-import {type PageContextType} from "../../../Contexts/PageContext";
 import useTokenContext from "../../../Contexts/TokenContext";
 import useNotesStateContext, { type NotesState } from "../../../Contexts/NotesStateContext";
 import type { GitlabToken, NoteRef } from "../../../lib/domain/types";

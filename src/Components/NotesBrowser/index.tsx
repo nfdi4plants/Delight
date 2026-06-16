@@ -1,23 +1,24 @@
 import React from "react";
 import BaseModal from "../BaseModal";
 import useNotesStateContext from "../../Contexts/NotesStateContext";
-import useTokenContext from "../../Contexts/TokenContext";
-import useErrorContext from "../../Contexts/ErrorContext";
+// import useTokenContext from "../../Contexts/TokenContext";
+// import useErrorContext from "../../Contexts/ErrorContext";
 import { type Repository, type NoteRef } from "../../lib/domain/types";
-import Note from "../../lib/domain/note";
+// import Note from "../../lib/domain/note";
 import { NotesTitlePattern } from "../../lib/services/notes";
 import usePageContext from "../../Contexts/PageContext";
 
 function CreateNoteModal({isOpen, setIsOpen}: {isOpen: boolean, setIsOpen: (isOpen: boolean) => void}) {
     const [input, setInput] = React.useState("")
-    const {token} = useTokenContext()
-    const {setError} = useErrorContext()
-    const {notes} = useNotesStateContext()
+    // const {token} = useTokenContext()
+    // const {setError} = useErrorContext()
+    // const {notes} = useNotesStateContext()
 
     const isValid = NotesTitlePattern.test(input)
 
     const createNote = async () => {
-        const note = Note.create(input, `# ${input}`)
+        // const note = Note.create(input, `# ${input}`)
+        console.log("Creating note with title: " + input)
         
     }
 
