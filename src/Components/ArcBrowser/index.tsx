@@ -42,7 +42,7 @@ function ArcBrowserListItem({ repository }: ArcBrowserListItemProps) {
             <div>{name}</div>
             <div className="text-xs uppercase font-semibold opacity-60">{description}</div>
             </div>
-            <button className="btn btn-square btn-ghost" onClick={connect}>
+            <button className="btn btn-square btn-accent" onClick={connect}>
                 {
                     (isConnecting) ? (
                         <span className="loading loading-spinner text-primary"></span>
