@@ -6,6 +6,7 @@ import { type GitlabToken } from "../../lib/domain/types";
 import { useErrorContext } from "../../Contexts/ErrorContext";
 import { type Repository } from "../../lib/domain/types";
 import useNotesStateContext from "../../Contexts/NotesStateContext";
+import BaseModal from "../BaseModal";
 
 interface ArcBrowserListItemProps {
     repository: Repository;
@@ -83,6 +84,62 @@ function ArcBrowserList({repos}: {repos: Repository[]}) {
     )
 }
 
+function CreateArcModal({isOpen, setIsOpen}: {isOpen: boolean, setIsOpen: (isOpen: boolean) => void}) {
+    const [input, setInput] = React.useState("")
+    const {token} = useTokenContext()
+    const {setError} = useErrorContext()
+    const {setNotes} = useNotesStateContext()
+
+    const createArc = async () => {
+        const repository = await gitlabApi.createRepo(token as GitlabToken, input)
+        if (repository.success) {
+            const notesResponse = await gitlabApi.listNotes(token as GitlabToken, repository.value)
+            if (notesResponse.success) {
+                setNotes({
+                    repository: repository.value,
+                    notes: notesResponse.value
+                })
+            } else if (notesResponse.error) {
+                const msg = `Failed to fetch notes for new ARC: ${notesResponse.error}`
+                setError(msg)
+            }
+        } else if (repository.error) {
+            const msg = `Failed to create ARC: ${repository.error}`
+            setError(msg)
+        }
+        setIsOpen(false)
+    }
+
+    return (
+        <BaseModal isOpen={isOpen} onClose={() => setIsOpen(false)} title="Create ARC">
+            <div className="flex flex-col gap-4">
+                <input type="text" placeholder="ARC name" className="input input-bordered w-full" value={input} onChange={(e) => setInput(e.target.value)}/>
+                <button className="btn btn-primary w-full" onClick={createArc}>Connect</button>
+            </div>
+        </BaseModal>
+    )
+}
+
+
+function Dock() {
+    const [isCreateArcModalOpen, setIsCreateArcModalOpen] = React.useState(false)
+    return (
+        <>
+            <CreateArcModal isOpen={isCreateArcModalOpen} setIsOpen={setIsCreateArcModalOpen} />
+            <div className="dock dock-sm">
+                <button
+                    type="button"
+                    title="Create ARC"
+                    aria-label="Create ARC"
+                    onClick={() => setIsCreateArcModalOpen(true)}
+                >
+                    <i className="iconify mdi--plus-circle-outline size-8"/>
+                </button>
+            </div>
+        </>
+    )
+}
+
 export default function ArcBrowser() {
 
     const [repos, setRepos] = React.useState<Repository[]>([])
@@ -113,7 +170,11 @@ export default function ArcBrowser() {
                 ) : repos.length === 0 ? (
                     <EmptyView />  
                 ) : (
-                    <ArcBrowserList repos={repos} />
+                    <>
+                        <ArcBrowserList repos={repos} />
+                        <Dock />
+                    </>
+
                 )
             }
         </div>

@@ -1,33 +1,27 @@
-import {useContext, useState} from "react";
-import {createPortal} from "react-dom";
-import {ErrorContext} from "../../../Contexts/ErrorContext";
+import { useContext, useState } from "react";
+import { ErrorContext } from "../../../Contexts/ErrorContext";
+import BaseModal from "../../BaseModal";
 
 function ErrorModal() {
-    const {error, setError} = useContext(ErrorContext);
+    const { error, setError } = useContext(ErrorContext);
+    const isOpen = error !== null;
 
     return (
-        createPortal(
-            <dialog className={`modal ${error ? "modal-open" : ""}`}>
-                <div className="modal-box">
-                    <h3 className="text-lg font-bold text-error">Error</h3>
-                    <p className="py-4">{error}</p>
-                    <div className="modal-action">
-                        <form method="dialog">
-                            <button className="btn" onClick={() => setError(null)}>Close</button>
-                        </form>
-                    </div>
-                </div>
-            </dialog>,
-            document.body
-        )
+        <BaseModal 
+            isOpen={isOpen} 
+            onClose={() => setError(null)} 
+            title="Error" 
+            classNames={{ title: "text-error" }}>
+            {error}
+        </BaseModal>
     )
 }
 
-export default function ErrorContextProvider({children}: {children: React.ReactNode}) {
+export default function ErrorContextProvider({ children }: { children: React.ReactNode }) {
     const [error, setError] = useState<string | null>(null);
-    
+
     return (
-        <ErrorContext value={{error, setError}}>
+        <ErrorContext value={{ error, setError }}>
             <ErrorModal />
             {children}
         </ErrorContext>
