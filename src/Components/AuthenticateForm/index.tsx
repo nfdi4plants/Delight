@@ -24,6 +24,7 @@ export default function AuthenticateForm() {
             <div className="hero-content flex-col gap-8">
                 <h1 className="text-5xl font-bold">Authenticate</h1>
                 <div className="text-2xl text-base-content/70">Enter your token to authenticate</div>
+                <p className="text-error text-sm max-w-md text-center">This is a prototype! Your token will not be stored securely. Remember to logout when you're done.</p>
                 <input 
                     name="token"
                     type="password" 

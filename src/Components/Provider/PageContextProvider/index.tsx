@@ -8,12 +8,12 @@ import { useErrorContext } from "../../../Contexts/ErrorContext";
 
 
 export default function PageContextProvider({ children }: { children: React.ReactNode }) {
-    const [page, setPage] = useState<PageState>("authentication");
     const {token, setToken} = useTokenContext()
     const {setError} = useErrorContext()
     const {notes, setNotes} = useNotesStateContext()
     const {activeNote, setActiveNote} = useActiveNoteContext()
-
+    const startPage = token === null ? "authentication" : "arc-browser"
+    const [page, setPage] = useState<PageState>(startPage);
     const setTokenAndNavigate = (token: GitlabToken) => {
         setToken(token)
         setPage("arc-browser")
