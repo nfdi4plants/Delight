@@ -2,6 +2,7 @@ import React from "react";
 import { type NoteRef, type Repository } from "../lib/domain/types";
 import {type Result} from "../lib/domain/result";
 import type Note from "../lib/domain/note";
+import type { SaveOutcome } from "../lib/domain/note";
 
 
 export type NoteControllerContextType = {
@@ -9,7 +10,8 @@ export type NoteControllerContextType = {
     setActiveRepository: (repository: Repository | null) => void;
     listNotes: (refresh?: boolean) => Promise<Result<NoteRef[]>>;
     getNote: (noteRef: NoteRef) => Promise<Result<Note>>;
-    addNote: (note: Note) => Promise<Result<void>>;
+    createLocalNote: (name: string, slug: string, content?: string) => Promise<Result<Note>>;
+    syncAll: () => Promise<Result<SaveOutcome>[]>;
 }
 
 export const NoteControllerContext = React.createContext<NoteControllerContextType>({
@@ -17,7 +19,8 @@ export const NoteControllerContext = React.createContext<NoteControllerContextTy
     setActiveRepository: () => {},
     listNotes: async (_) => ({ success: false, error: "NoteController not initialized" }), // Default to an empty list of notes
     getNote: async (_) => ({ success: false, error: "NoteController not initialized" }), // Default to an error for getNote
-    addNote: async (_) => ({ success: false, error: "NoteController not initialized" }), // Default to an error for addNote
+    createLocalNote: async (_) => ({ success: false, error: "NoteController not initialized" }), // Default to an error for addNote
+    syncAll: async () => ([{ success: false, error: "NoteController not initialized" }]) // Default to an error for syncAll
 })
 
 export const useNoteControllerContext = () => React.useContext(NoteControllerContext);

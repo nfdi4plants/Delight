@@ -78,6 +78,20 @@ export default class NoteController {
 	}
 
 	/**
+	 * Add a new note to the repository, the note is expected to be unsaved and to be stored purely locally until `save` is called on it.
+	 * On a successful save, the note is added to the listing and becomes the cached instance for its file path.
+	 */
+	async createNote(title: string, slug: string, { content = "" }: { content?: string } = {}): Promise<Result<Note>> {
+		const noteResult = Note.create(title, slug, content);
+		if (!noteResult.success) return { success: false, error: "Invalid note parameters" };
+		const note = noteResult.value;
+		const noteRef = note.toNoteRef();
+		this.addToListing(noteRef);
+		this.cache.set(note.filePath, note);
+		return Success(note);
+	}
+
+	/**
 	 * Persist a note through the controller, keeping the cache and listing in
 	 * sync. Delegates to `Note.save`, so a concurrent edit still surfaces as a
 	 * merge request (see {@link SaveOutcome}); on a clean save a newly created
@@ -92,6 +106,14 @@ export default class NoteController {
 		this.cache.set(note.filePath, note);
 		if (result.value.kind === 'saved') this.addToListing(note.toNoteRef());
 		return result;
+	}
+
+	/**
+	 * Save all notes in the cache. Returns an array of results for each note.
+	 */
+	async saveAll(): Promise<Result<SaveOutcome>[]> {
+		const saves = Array.from(this.cache.values()).map((note) => note.save(this.token, this.repo));
+		return Promise.all(saves);
 	}
 
 	/** Drop a note from the cache (or clear everything when no ref is given). */

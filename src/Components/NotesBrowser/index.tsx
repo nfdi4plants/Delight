@@ -9,7 +9,9 @@ import { useErrorContext } from "../../Contexts/ErrorContext";
 function CreateNoteModal({isOpen, setIsOpen}: {isOpen: boolean, setIsOpen: (isOpen: boolean) => void}) {
     const [input, setInput] = React.useState("")
     const [slug, setSlug] = React.useState("")
-    const {addNote} = useNoteControllerContext()
+    const {createLocalNote} = useNoteControllerContext()
+    const {setError} = useErrorContext();
+    const {setActiveNote} = usePageContext();
 
     const handleOnChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const value = e.target.value
@@ -25,8 +27,13 @@ function CreateNoteModal({isOpen, setIsOpen}: {isOpen: boolean, setIsOpen: (isOp
 
     const createNote = async () => {
         if (!isValid) return;
-        const note = Note.create(input, slug, `# ${input}`)   
-        console.log(note)  
+        const response = await createLocalNote(input, slug, `# ${input}`)
+        if (response.success) {
+            setActiveNote(response.value)
+        } else {
+            setError(response.error)
+        }
+        setIsOpen(false)
     }
 
     return (
