@@ -287,6 +287,9 @@ export default class Note {
 	}
 
 	addAsset(asset: Asset): Result<Note> {
+  	if (!asset.path.startsWith(`${this.assetsFolder}/`)) {
+  		return Failure(`Asset path "${asset.path}" is not within the note's asset folder.`);
+  	}
 	  this.assets.push(asset);
 		return Success(this);
 	}
