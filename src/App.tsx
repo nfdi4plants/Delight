@@ -1,11 +1,17 @@
+import { useContext } from 'react'
 import './App.css'
+import Layout from './Components/Layout'
+import AuthenticateForm from './Components/AuthenticateForm'
+import {TokenContext} from './Contexts/TokenContext'
+
 
 function App() {
+  const { token } = useContext(TokenContext)
+
   return (
-    <>
-      <h1>delight</h1>
-      <button className='btn btn-primary'>Text</button>
-    </>
+      <Layout>
+        {token === null && <AuthenticateForm />}
+      </Layout>
   )
 }
 

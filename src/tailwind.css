@@ -1,2 +1,5 @@
 @import "tailwindcss";
 @plugin "daisyui";
+@plugin "@iconify/tailwind4" {
+    prefixes: mdi
+}
