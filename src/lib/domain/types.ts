@@ -22,8 +22,12 @@ export type Repository = {
 	avatar_url: string | null;
 };
 
-/** A markdown note within a repository. */
-export type Note = {
+/**
+ * A lightweight handle to a note file in a repository, as returned by
+ * listing the tree — before its contents are fetched. Load it into a full
+ * `Note` (see `domain/note.ts`) with `Note.load`.
+ */
+export type NoteRef = {
 	/** File name, e.g. "meeting.md". */
 	name: string;
 	/** Path within the repository, e.g. "notes/sub/meeting.md". */

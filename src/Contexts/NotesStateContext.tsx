@@ -1,8 +1,8 @@
 import React from "react";
-import { type Note, type Repository } from "../lib/domain/types";
+import { type NoteRef, type Repository } from "../lib/domain/types";
 
 export type NotesState = {
-    notes: Note[]
+    notes: NoteRef[]
     repository: Repository
 }
 

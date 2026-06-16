@@ -1,4 +1,4 @@
-import type { GitlabToken, Repository, Note } from '../domain/types';
+import type { GitlabToken, Repository, NoteRef } from '../domain/types';
 import { type Result, Success, Failure, bindAsync, map } from '../domain/result';
 
 // Base URL of the GitLab instance. The `/api/v4` REST API lives below it.
@@ -6,7 +6,7 @@ const BASE_URL = 'https://git.nfdi4plants.org';
 const API_URL = `${BASE_URL}/api/v4`;
 
 // Raw shape of a GitLab repository-tree entry. Private to this module:
-// `listNotes` maps it down to the frontend-facing `Note`.
+// `listNotes` maps it down to the frontend-facing `NoteRef`.
 type TreeEntry = {
 	id: string;
 	name: string;
@@ -168,7 +168,7 @@ export function listRepos(
 export async function listNotes(
 	token: GitlabToken,
 	repo: Repository
-): Promise<Result<Note[]>> {
+): Promise<Result<NoteRef[]>> {
 	const tree = await apiGetAll<TreeEntry>(
 		`/projects/${repo.id}/repository/tree?path=notes&recursive=true`,
 		token
@@ -188,7 +188,7 @@ export async function listNotes(
 export async function getNote(
 	token: GitlabToken,
 	repo: Repository,
-	note: Note
+	note: NoteRef
 ): Promise<Result<string>> {
 	const ref = repo.default_branch ?? 'main';
 	const filePath = encodeURIComponent(note.path);
