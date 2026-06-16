@@ -13,26 +13,11 @@ interface ArcBrowserListItemProps {
 }
 
 function ArcBrowserListItem({ repository }: ArcBrowserListItemProps) {
-    const [isConnecting, setIsConnecting] = React.useState(false)
     const { name, description, avatar_url } = repository;
-    const { token } = useTokenContext()
-    const {setError} = useErrorContext()
     const {setRepository} = usePageContext()
 
     const connect = async () => {
-        setIsConnecting(true)
-        const response = await gitlabApi.listNotes(token as GitlabToken, repository)
-        if (response.success) {
-            
-            const v = {
-                repository,
-                notes: response.value
-            }
-            setRepository(v)
-        } else if (response.error) {
-            setError(response.error)
-        }
-        setIsConnecting(false)
+        setRepository(repository)
     }
     return (
         <li className="list-row">
@@ -43,13 +28,7 @@ function ArcBrowserListItem({ repository }: ArcBrowserListItemProps) {
             <div className="text-xs uppercase font-semibold opacity-60">{description}</div>
             </div>
             <button className="btn btn-square btn-accent" onClick={connect}>
-                {
-                    (isConnecting) ? (
-                        <span className="loading loading-spinner text-primary"></span>
-                    ) : (   
-                        <i className="iconify mdi--link-variant size-8"/>
-                    )
-                }
+                <i className="iconify mdi--link-variant size-8"/>
             </button>
         </li>
     )
@@ -93,16 +72,7 @@ function CreateArcModal({isOpen, setIsOpen}: {isOpen: boolean, setIsOpen: (isOpe
     const createArc = async () => {
         const repository = await gitlabApi.createRepo(token as GitlabToken, input)
         if (repository.success) {
-            const notesResponse = await gitlabApi.listNotes(token as GitlabToken, repository.value)
-            if (notesResponse.success) {
-                setRepository({
-                    repository: repository.value,
-                    notes: notesResponse.value
-                })
-            } else if (notesResponse.error) {
-                const msg = `Failed to fetch notes for new ARC: ${notesResponse.error}`
-                setError(msg)
-            }
+            setRepository(repository.value)
         } else if (repository.error) {
             const msg = `Failed to create ARC: ${repository.error}`
             setError(msg)

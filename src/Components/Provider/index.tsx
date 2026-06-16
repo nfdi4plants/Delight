@@ -1,7 +1,7 @@
 import React from "react";
 import ErrorContextProvider from "./ErrorContextProvider";
 import TokenContextProvider from "./TokenContextProvider";
-import NotesStateContextProvider from "./NotesStateContextProvider";
+import NotesStateContextProvider from "./NoteControllerContextProvider";
 import ActiveNoteContextProvider from "./ActiveNoteContextProvider";
 import PageContextProvider from "./PageContextProvider";
 

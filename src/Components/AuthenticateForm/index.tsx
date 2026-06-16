@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import useErrorContext from '../../Contexts/ErrorContext'
 import usePageContext from '../../Contexts/PageContext'
-import {API_URL, validateToken} from '../../lib/services/git-service'
+import {validateToken} from '../../lib/services/git-service'
 import {type GitlabToken} from '../../lib/domain/types'
 import { BASE_URL } from '../../lib/services/git-service'
 
