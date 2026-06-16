@@ -1,4 +1,4 @@
-import type { GitlabToken, Repository, NoteRef } from '../domain/types';
+import type { GitlabToken, Repository, NoteRef, MergeRequest } from '../domain/types';
 import { type Result, Success, Failure, bindAsync, map } from '../domain/result';
 
 // Base URL of the GitLab instance. The `/api/v4` REST API lives below it.
@@ -181,19 +181,42 @@ export async function listNotes(
 	return Success(notes);
 }
 
+/** A file's content together with the version token needed to update it safely. */
+export type FileContents = {
+	content: string;
+	/**
+	 * SHA of the last commit that modified this file, from the
+	 * `X-Gitlab-Last-Commit-Id` header. Passed back as `last_commit_id` on a
+	 * later write so GitLab can reject the write if the file moved meanwhile.
+	 * `null` if the header is absent.
+	 */
+	lastCommitId: string | null;
+};
+
 /**
- * Fetch the raw text content of a single note from the repository's
- * default branch.
+ * Fetch the raw content of a single note from the repository's default
+ * branch, along with the commit it was last modified at (for optimistic
+ * concurrency on a later write).
  */
 export async function getNote(
 	token: GitlabToken,
 	repo: Repository,
 	note: NoteRef
-): Promise<Result<string>> {
+): Promise<Result<FileContents>> {
 	const ref = repo.default_branch ?? 'main';
 	const filePath = encodeURIComponent(note.path);
 	const path = `/projects/${repo.id}/repository/files/${filePath}/raw?ref=${encodeURIComponent(ref)}`;
-	return bindAsync(apiGet(path, token), readText);
+
+	const got = await apiGet(path, token);
+	if (!got.success) return Failure(got.error);
+
+	const text = await readText(got.value);
+	if (!text.success) return Failure(text.error);
+
+	return Success({
+		content: text.value,
+		lastCommitId: got.value.headers.get('x-gitlab-last-commit-id')
+	});
 }
 
 /**
@@ -262,4 +285,103 @@ export async function pushNote(
 		checkResponse
 	);
 	return map(written, () => null);
+}
+
+// ── Conflict-aware writes ──────────────────────────────────────────
+// Lower-level primitives that let a caller (the Note class) implement
+// optimistic concurrency: commit with a version guard, and — when that
+// guard trips — divert the change onto a branch + merge request.
+
+/**
+ * The outcome of a single guarded commit. A `conflict` is the expected,
+ * recoverable case (the file already exists on create, or changed since
+ * `lastCommitId` on update); `error` is anything else.
+ */
+export type CommitOutcome =
+	| { kind: 'committed' }
+	| { kind: 'conflict'; message: string }
+	| { kind: 'error'; message: string };
+
+/**
+ * Commit `content` to a single file on `branch` in one request.
+ *
+ * `mode` selects create (POST) vs update (PUT); on an update you may pass
+ * `lastCommitId` to make the write conditional — GitLab rejects it if the
+ * file changed since that commit. GitLab signals both "already exists"
+ * (create) and "changed since `last_commit_id`" (update) with `400`; since
+ * our payload is always well-formed, a `400` on these calls is treated as a
+ * concurrency conflict rather than a malformed request.
+ */
+export async function commitFile(
+	token: GitlabToken,
+	repo: Repository,
+	params: {
+		path: string;
+		content: string;
+		commitMessage: string;
+		branch: string;
+		mode: 'create' | 'update';
+		lastCommitId?: string;
+	}
+): Promise<CommitOutcome> {
+	const filePath = encodeURIComponent(params.path);
+	const method = params.mode === 'create' ? 'POST' : 'PUT';
+	const body: Record<string, unknown> = {
+		branch: params.branch,
+		content: params.content,
+		commit_message: params.commitMessage
+	};
+	if (params.mode === 'update' && params.lastCommitId) {
+		body.last_commit_id = params.lastCommitId;
+	}
+
+	const written = await request(method, `/projects/${repo.id}/repository/files/${filePath}`, token, body);
+	if (!written.success) return { kind: 'error', message: written.error };
+
+	const response = written.value;
+	if (response.ok) return { kind: 'committed' };
+	if (response.status === 400) {
+		const detail = await gitlabErrorMessage(response);
+		return { kind: 'conflict', message: detail ?? 'The file changed on the server since it was loaded.' };
+	}
+
+	const checked = await checkResponse(response); // classify 401 and the rest
+	return { kind: 'error', message: checked.success ? `Unexpected status ${response.status}.` : checked.error };
+}
+
+/** Create a branch named `branch` pointing at `ref` (a branch name or commit SHA). */
+export async function createBranch(
+	token: GitlabToken,
+	repo: Repository,
+	branch: string,
+	ref: string
+): Promise<Result<null>> {
+	const query = `branch=${encodeURIComponent(branch)}&ref=${encodeURIComponent(ref)}`;
+	const created = await bindAsync(
+		request('POST', `/projects/${repo.id}/repository/branches?${query}`, token),
+		checkResponse
+	);
+	return map(created, () => null);
+}
+
+/** Open a merge request from `source` into `target`, returning its details. */
+export async function createMergeRequest(
+	token: GitlabToken,
+	repo: Repository,
+	source: string,
+	target: string,
+	title: string
+): Promise<Result<MergeRequest>> {
+	return bindAsync(
+		bindAsync(
+			request('POST', `/projects/${repo.id}/merge_requests`, token, {
+				source_branch: source,
+				target_branch: target,
+				title,
+				remove_source_branch: true
+			}),
+			checkResponse
+		),
+		(response) => readJson<MergeRequest>(response)
+	);
 }
