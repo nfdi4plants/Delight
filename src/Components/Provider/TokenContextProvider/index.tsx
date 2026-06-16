@@ -1,4 +1,4 @@
-import { TokenContext } from "../../Contexts/TokenContext";
+import { TokenContext } from "../../../Contexts/TokenContext";
 import { useLocalStorage } from "@uidotdev/usehooks";
 
 export default function TokenContextProvider({ children }: { children: React.ReactNode }) {

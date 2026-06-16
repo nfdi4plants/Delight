@@ -1,6 +1,6 @@
 import {useContext, useState} from "react";
 import {createPortal} from "react-dom";
-import {ErrorContext} from "../../Contexts/ErrorContext";
+import {ErrorContext} from "../../../Contexts/ErrorContext";
 
 function ErrorModal() {
     const {error, setError} = useContext(ErrorContext);

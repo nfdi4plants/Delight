@@ -3,7 +3,7 @@ import './App.css'
 import Layout from './Components/Layout'
 import AuthenticateForm from './Components/AuthenticateForm'
 import {TokenContext} from './Contexts/TokenContext'
-import {ErrorContext} from './Contexts/ErrorContext'
+import ArcBrowser from './Components/ArcBrowser'
 
 
 function App() {
@@ -11,7 +11,10 @@ function App() {
 
   return (
       <Layout>
-        {token === null && <AuthenticateForm />}
+        {token === null ?
+          <AuthenticateForm /> :
+          <ArcBrowser />
+        }
       </Layout>
   )
 }

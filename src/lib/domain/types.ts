@@ -19,6 +19,7 @@ export type Repository = {
 	web_url: string;
 	http_url_to_repo: string;
 	default_branch: string | null;
+	avatar_url: string | null;
 };
 
 /** A markdown note within a repository. */
