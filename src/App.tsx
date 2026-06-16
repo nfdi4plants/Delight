@@ -1,5 +1,6 @@
 import { useContext } from 'react'
 import './App.css'
+import Layout from './Components/Layout'
 import AuthenticateForm from './Components/AuthenticateForm'
 import {TokenContext} from './Contexts/TokenContext'
 
@@ -8,9 +9,9 @@ function App() {
   const { token } = useContext(TokenContext)
 
   return (
-      <div className="h-screen w-screen">
+      <Layout>
         {token === null && <AuthenticateForm />}
-      </div>
+      </Layout>
   )
 }
 
