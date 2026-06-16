@@ -9,6 +9,7 @@ import {
 	getFileBlob,
 	commitFiles,
 	createMergeRequest,
+	fileExists,
 	type CommitAction
 } from './git-service';
 import { type NoteStore, createNoteStore } from './note-store';
@@ -18,7 +19,8 @@ import { type NoteStore, createNoteStore } from './note-store';
  * single commit, so the result is one batch verdict, not one per note:
  *
  * - `idle` — nothing was dirty (the listing was still refreshed).
- * - `uploaded` — `notes` were committed together to the default branch.
+ * - `uploaded` — `notes` were committed together to the default branch at
+ *   `commitId` (the SHA their cached snapshots are now pinned to).
  * - `merge-request` — a concurrent edit was detected, so the whole batch went
  *   onto one branch and a single merge request (`url`) was opened for review.
  * - `failed` — the batch could not be pushed (e.g. offline); `notes` stay
@@ -26,7 +28,7 @@ import { type NoteStore, createNoteStore } from './note-store';
  */
 export type SyncReport =
 	| { kind: 'idle' }
-	| { kind: 'uploaded'; notes: NoteRef[] }
+	| { kind: 'uploaded'; notes: NoteRef[]; commitId: string }
 	| { kind: 'merge-request'; notes: NoteRef[]; url: string }
 	| { kind: 'failed'; notes: NoteRef[]; error: string };
 
@@ -47,8 +49,9 @@ function basename(path: string): string {
  * same way regardless.
  *
  * `sync` pushes every dirty note (and its assets) as one commit — a clash
- * becomes a single merge request — refreshes the listing, and, once everything
- * is safely on the server, drops all cached content so the next read pulls fresh.
+ * becomes a single merge request — refreshes the listing, and pins each pushed
+ * note's cached snapshot to the commit it landed at, so a later edit syncs as a
+ * guarded update rather than re-creating a file that already exists.
  *
  * Only the token is held in an ECMAScript `#private` field — unlike a
  * TypeScript `private`, which is erased at runtime, so it is unreadable from
@@ -129,7 +132,25 @@ export default class NoteController {
 	 * and edits to existing ones.
 	 */
 	async saveNote(note: Note): Promise<void> {
-		await this.store.writeNote(this.repo.id, note.filePath, note.toSnapshot());
+		const snapshot = note.toSnapshot();
+
+		// The note may be on the server already even though this instance has no
+		// commit token — the UI rebuilds every edit as a fresh `Note.create`,
+		// which can't carry one. Recover the token (note and assets, by path)
+		// from the cached copy, so an edit to a synced note commits as a guarded
+		// update instead of a create that GitLab rejects as "already exists".
+		if (snapshot.baseCommitId === null) {
+			const cached = await this.store.readNote(this.repo.id, note.filePath);
+			if (cached && cached.baseCommitId !== null) {
+				snapshot.baseCommitId = cached.baseCommitId;
+				const tokens = new Map(cached.assets.map((asset) => [asset.path, asset.baseCommitId]));
+				for (const asset of snapshot.assets) {
+					if (asset.baseCommitId === null) asset.baseCommitId = tokens.get(asset.path) ?? null;
+				}
+			}
+		}
+
+		await this.store.writeNote(this.repo.id, note.filePath, snapshot);
 
 		const dirty = new Set((await this.store.readDirty(this.repo.id)) ?? []);
 		dirty.add(note.filePath);
@@ -140,9 +161,10 @@ export default class NoteController {
 	 * Push all locally-saved (dirty) notes to GitLab as a **single commit**,
 	 * then refresh the listing. If any note changed on the server since it was
 	 * loaded, the whole batch is diverted onto one branch and a single merge
-	 * request is opened instead. Once everything is safely on the server, all
-	 * cached note content is dropped so subsequent reads pull fresh. A failed
-	 * push (e.g. offline) leaves the notes dirty and cached for the next sync.
+	 * request is opened instead. Once the batch is on the server each pushed
+	 * note's cached snapshot is pinned to the commit it landed at, so the next
+	 * edit syncs as a guarded update. A failed push (e.g. offline) leaves the
+	 * notes dirty and cached for the next sync.
 	 */
 	async sync(): Promise<SyncReport> {
 		const dirtyPaths = (await this.store.readDirty(this.repo.id)) ?? [];
@@ -178,18 +200,42 @@ export default class NoteController {
 		const report = actions.length === 0 ? { kind: 'idle' as const } : await this.pushBatch(actions, notes);
 		if (report.kind === 'failed') return report;
 
-		// The batch reached the server (or there was nothing to push). Refresh
-		// the listing, mark the pushed notes clean, and — when nothing is left
-		// dirty — drop all cached content so the next read pulls fresh.
-		const fresh = await listNotes(this.#token, this.repo);
-		if (fresh.success) {
-			await this.store.writeListing(this.repo.id, fresh.value);
-			const pushed = new Set(notes.map((ref) => ref.path));
-			const remaining = dirtyPaths.filter((path) => !pushed.has(path));
-			await this.store.writeDirty(this.repo.id, remaining);
-			if (remaining.length === 0) await this.store.clearNotes(this.repo.id);
+		// The batch is on the server now (committed to the default branch, or
+		// pushed to a branch for review). Mark the pushed notes clean up front —
+		// not gated on the listing refresh below — so a refresh failure can't
+		// strand a committed note as dirty and have it re-push as a (rejected)
+		// create next time.
+		const pushed = new Set(notes.map((ref) => ref.path));
+		const remaining = dirtyPaths.filter((path) => !pushed.has(path));
+		await this.store.writeDirty(this.repo.id, remaining);
+
+		if (report.kind === 'uploaded') {
+			// Pin each pushed note's cached snapshot to the commit it landed at, so
+			// a later edit syncs as a guarded update rather than re-creating it.
+			await this.markSynced(notes, report.commitId);
+		} else if (remaining.length === 0) {
+			// Diverted to a merge request: the changes are not on the default
+			// branch yet, so drop the cached content and let the next read pull
+			// fresh once the request is merged.
+			await this.store.clearNotes(this.repo.id);
 		}
+
+		const fresh = await listNotes(this.#token, this.repo);
+		if (fresh.success) await this.store.writeListing(this.repo.id, fresh.value);
 		return report;
+	}
+
+	// Pin each note's cached snapshot — and its assets — to `commitId`, the
+	// commit the batch landed at, so a subsequent edit carries a valid version
+	// guard and commits as an update instead of a create.
+	private async markSynced(notes: NoteRef[], commitId: string): Promise<void> {
+		for (const ref of notes) {
+			const snapshot = await this.store.readNote(this.repo.id, ref.path);
+			if (!snapshot) continue;
+			snapshot.baseCommitId = commitId;
+			for (const asset of snapshot.assets) asset.baseCommitId = commitId;
+			await this.store.writeNote(this.repo.id, ref.path, snapshot);
+		}
 	}
 
 	// Commit the batch in one request: a guarded commit straight to the default
@@ -199,19 +245,22 @@ export default class NoteController {
 		const commitMessage = notes.length === 1 ? `Save note ${notes[0].name}` : `Sync ${notes.length} notes`;
 
 		const direct = await commitFiles(this.#token, this.repo, { branch, commitMessage, actions });
-		if (direct.kind === 'committed') return { kind: 'uploaded', notes };
+		if (direct.kind === 'committed') return { kind: 'uploaded', notes, commitId: direct.commitId };
 		if (direct.kind === 'error') return { kind: 'failed', notes, error: direct.message };
 
 		// Conflict: divert the whole batch onto a fresh branch (created from the
 		// default branch in the same request, without the per-file guards) and
-		// open a single merge request for review.
+		// open a single merge request for review. The guards are dropped, but each
+		// action's create/update must still match what's on the branch — otherwise
+		// a create whose file already exists (the very clash we're escaping) just
+		// fails again. Reconcile create-vs-update against the base branch per file.
 		const branchName = `note-sync/${Date.now().toString(36)}`;
-		const unguarded = actions.map(({ action, filePath, content, encoding }) => ({ action, filePath, content, encoding }));
+		const reconciled = await this.reconcileActions(actions, branch);
 		const diverted = await commitFiles(this.#token, this.repo, {
 			branch: branchName,
 			startBranch: branch,
 			commitMessage,
-			actions: unguarded
+			actions: reconciled
 		});
 		if (diverted.kind !== 'committed') return { kind: 'failed', notes, error: diverted.message };
 
@@ -219,6 +268,19 @@ export default class NoteController {
 		return mr.success
 			? { kind: 'merge-request', notes, url: mr.value.web_url }
 			: { kind: 'failed', notes, error: mr.error };
+	}
+
+	// Drop the per-file guards and set each action's create/update to match the
+	// file's presence on `branch`, so the diverted commit lands cleanly however
+	// the conflict arose. If an existence probe fails, the action is left as-is.
+	private async reconcileActions(actions: CommitAction[], branch: string): Promise<CommitAction[]> {
+		return Promise.all(
+			actions.map(async ({ action, filePath, content, encoding }) => {
+				const exists = await fileExists(this.#token, this.repo, filePath, branch);
+				const resolved = exists.success ? (exists.value ? 'update' : 'create') : action;
+				return { action: resolved, filePath, content, encoding };
+			})
+		);
 	}
 
 	// Union the listing with handles for any still-dirty notes not in it yet

@@ -352,7 +352,7 @@ export async function pushNote(
  * on update); `error` is anything else.
  */
 export type CommitOutcome =
-	| { kind: 'committed' }
+	| { kind: 'committed'; commitId: string }
 	| { kind: 'conflict'; message: string }
 	| { kind: 'error'; message: string };
 
@@ -405,7 +405,14 @@ export async function commitFiles(
 	if (!written.success) return { kind: 'error', message: written.error };
 
 	const response = written.value;
-	if (response.ok) return { kind: 'committed' };
+	if (response.ok) {
+		// The Commits API returns the new commit; its SHA is the version token a
+		// later guarded write of these files must carry.
+		const parsed = await readJson<{ id: string }>(response);
+		return parsed.success
+			? { kind: 'committed', commitId: parsed.value.id }
+			: { kind: 'error', message: parsed.error };
+	}
 	if (response.status === 400) {
 		const detail = await gitlabErrorMessage(response);
 		return { kind: 'conflict', message: detail ?? 'A file changed on the server since it was loaded.' };
@@ -413,6 +420,32 @@ export async function commitFiles(
 
 	const checked = await checkResponse(response);
 	return { kind: 'error', message: checked.success ? `Unexpected status ${response.status}.` : checked.error };
+}
+
+/**
+ * Whether a file exists at `path` on `ref`. Used when diverting a conflicted
+ * batch onto a branch to pick create-vs-update per file, so the commit lands
+ * cleanly instead of tripping over a create whose file already exists (or an
+ * update of one that doesn't). A clean 404 is `Success(false)`; a transport or
+ * unexpected-status failure surfaces as a `Failure`.
+ */
+export async function fileExists(
+	token: GitlabToken,
+	repo: Repository,
+	path: string,
+	ref: string
+): Promise<Result<boolean>> {
+	const filePath = encodeURIComponent(path);
+	const probe = await request(
+		'HEAD',
+		`/projects/${repo.id}/repository/files/${filePath}?ref=${encodeURIComponent(ref)}`,
+		token
+	);
+	if (!probe.success) return Failure(probe.error);
+	if (probe.value.ok) return Success(true);
+	if (probe.value.status === 404) return Success(false);
+	const checked = await checkResponse(probe.value); // necessarily a Failure
+	return Failure(checked.success ? `Unexpected status ${probe.value.status}.` : checked.error);
 }
 
 /** Open a merge request from `source` into `target`, returning its details. */
