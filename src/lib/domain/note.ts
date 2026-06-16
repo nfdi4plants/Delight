@@ -55,7 +55,7 @@ export type NoteSnapshot = {
 // filesystem and inside a URL. It is derived from the title once, at
 // creation, and then stays fixed — independent of later title edits.
 
-const SLUG_PATTERN = /^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$/;
+export const SLUG_PATTERN = /^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$/;
 
 /** Derive a legal slug from a free-form title, or `null` if nothing survives. */
 function slugify(title: string): string | null {

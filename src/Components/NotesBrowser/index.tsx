@@ -1,25 +1,39 @@
 import React from "react";
 import BaseModal from "../BaseModal";
-import useNotesStateContext from "../../Contexts/NotesStateContext";
-// import useTokenContext from "../../Contexts/TokenContext";
-// import useErrorContext from "../../Contexts/ErrorContext";
+import useNoteControllerContext from "../../Contexts/NoteControllerContext";
 import { type Repository, type NoteRef } from "../../lib/domain/types";
-// import Note from "../../lib/domain/note";
-import { NotesTitlePattern } from "../../lib/services/notes";
+import Note, {SLUG_PATTERN} from "../../lib/domain/note";
 import usePageContext from "../../Contexts/PageContext";
+import { useErrorContext } from "../../Contexts/ErrorContext";
 
 function CreateNoteModal({isOpen, setIsOpen}: {isOpen: boolean, setIsOpen: (isOpen: boolean) => void}) {
     const [input, setInput] = React.useState("")
-    // const {token} = useTokenContext()
-    // const {setError} = useErrorContext()
-    // const {notes} = useNotesStateContext()
+    const [slug, setSlug] = React.useState("")
+    const {createLocalNote} = useNoteControllerContext()
+    const {setError} = useErrorContext();
+    const {setActiveNote} = usePageContext();
 
-    const isValid = NotesTitlePattern.test(input)
+    const handleOnChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const value = e.target.value
+        const slug = Note.slugify(value)
+        if (slug) {
+            setInput(value)
+            setSlug(slug)
+        }
+        setInput(value)
+    }
+
+    const isValid = SLUG_PATTERN.test(slug)
 
     const createNote = async () => {
-        // const note = Note.create(input, `# ${input}`)
-        console.log("Creating note with title: " + input)
-        
+        if (!isValid) return;
+        const response = await createLocalNote(input, slug, `# ${input}`)
+        if (response.success) {
+            setActiveNote(response.value)
+        } else {
+            setError(response.error)
+        }
+        setIsOpen(false)
     }
 
     return (
@@ -27,15 +41,25 @@ function CreateNoteModal({isOpen, setIsOpen}: {isOpen: boolean, setIsOpen: (isOp
             <div className="flex flex-col gap-4">
                 <p className="text-sm opacity-60">A note will be created with the name in the format YYYYMMDD-note-name.md</p>
                 <input 
-                    pattern={NotesTitlePattern.source}
                     required 
                     type="text" 
+                    title="The title of the note, it can be changed later. It is used to generate the filename."
                     placeholder="Note name" 
-                    className="validator input input-bordered w-full" 
+                    className="input input-bordered w-full" 
                     value={input} 
-                    onChange={e => setInput(e.target.value)}/>
+                    onChange={handleOnChange}/>
+                <input 
+                    value={slug}
+                    onChange={e => setSlug(e.target.value)}
+                    type="text" 
+                    required
+                    pattern={SLUG_PATTERN.source}
+                    placeholder="filename" 
+                    className="validator input input-bordered w-full"
+                    title="The filename of the note, it must be unique and can only contain lowercase letters, numbers and dashes."
+                />
                 <p className="validator-hint">
-                    Must be alphanumeric, can only contain letters, numbers and dashes. Cannot be empty.
+                    Filename must be alphanumeric, can only contain letters, numbers and dashes. Cannot be empty.
                 </p>
                 <button
                     className="btn btn-primary w-full" 
@@ -95,14 +119,27 @@ function NotesBrowserList({notes}: {notes: NoteRef[]}) {
     )
 }
 
-function Metadata({repository}: {repository: Repository}) {
+function Metadata({repository, listNotes}: {repository: Repository, listNotes: (refresh?: boolean | undefined) => Promise<void>}) {
     const {setPage} = usePageContext()
 
     return (
         <div className="flex flex-col p-2 gap-1">
-            <div className="flex items-center gap-4">
-                <button className="btn btn-sm btn-square btn-primary" onClick={() => setPage("arc-browser")}>
+            <div className="flex items-center gap-2">
+                <button 
+                    className="btn btn-sm btn-square btn-primary" 
+                    onClick={() => setPage("arc-browser")}
+                    title="Back to ARC browser"
+                    aria-label="Back to ARC browser"
+                >
                     <i className="iconify mdi--arrow-left-bold-box-outline size-5"></i>
+                </button>
+                <button 
+                    className="btn btn-sm btn-square" 
+                    onClick={() => listNotes(true)}
+                    title="Refresh notes list"
+                    aria-label="Refresh notes list"
+                >
+                    <i className="iconify mdi--cloud-refresh size-5"></i>
                 </button>
                 <h1 className="text-2xl font-bold">{repository.name}</h1>
             </div>
@@ -112,19 +149,46 @@ function Metadata({repository}: {repository: Repository}) {
 }
 
 export default function NotesBrowser() {
-    const { notes } = useNotesStateContext()
+    const [notes, setNotes] = React.useState<NoteRef[]>([])
+    const {setError} = useErrorContext()
+    const [isLoading, setIsLoading] = React.useState(true)
+    const {activeRepository, listNotes} = useNoteControllerContext()
+
+    const fetchNotes = async (refresh?: boolean) => {
+        setIsLoading(true)
+        const response = await listNotes(refresh)
+        if (response.success) {
+            setNotes(response.value)
+        } else {
+            setError(response.error)
+            setNotes([])
+        }   
+        setIsLoading(false)
+    }
+
+    React.useEffect(() => {
+        fetchNotes()
+    }, [])
 
     return (
         <div className="h-full w-full">
-            {!notes ?
-                <div className="flex flex-col items-center gap-4 py-8">
-                    <div className="text-2xl opacity-60">No repository connected</div>
-                    <div className="text-sm opacity-40">Connect a repository to get started</div>
-                </div> :
-                <>
-                    <Metadata repository={notes.repository} />
-                    <NotesBrowserList notes={notes.notes} />
-                    <Dock />
+            {
+                activeRepository === null ?
+                    <div className="flex flex-col items-center gap-4 py-8">
+                        <div className="text-2xl opacity-60">No ARC connected</div>
+                        <div className="text-sm opacity-40">Connect an ARC to view its notes</div>
+                    </div>
+                : <>
+                    <Metadata repository={activeRepository} listNotes={fetchNotes} />
+                    {isLoading ? 
+                        <div className="flex flex-col items-center gap-4 py-8">
+                            <span className="loading loading-spinner text-primary"></span>
+                            <div className="text-sm opacity-60">Loading notes...</div>
+                        </div>
+                    : <>
+                        <NotesBrowserList notes={notes} />
+                        <Dock />
+                    </>}   
                 </>
             }   
         </div>

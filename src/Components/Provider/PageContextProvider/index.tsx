@@ -1,16 +1,16 @@
 import {PageContext, type PageState} from "../../../Contexts/PageContext";
 import {useState} from "react";
 import useTokenContext from "../../../Contexts/TokenContext";
-import useNotesStateContext, { type NotesState } from "../../../Contexts/NotesStateContext";
-import type { GitlabToken, NoteRef } from "../../../lib/domain/types";
+import useNoteControllerContext from "../../../Contexts/NoteControllerContext";
+import type { GitlabToken, Repository } from "../../../lib/domain/types";
 import useActiveNoteContext from "../../../Contexts/ActiveNoteContext";
 import { useErrorContext } from "../../../Contexts/ErrorContext";
-
+import type Note from "../../../lib/domain/note";
 
 export default function PageContextProvider({ children }: { children: React.ReactNode }) {
     const {token, setToken} = useTokenContext()
     const {setError} = useErrorContext()
-    const {notes, setNotes} = useNotesStateContext()
+    const {activeRepository, setActiveRepository} = useNoteControllerContext()
     const {activeNote, setActiveNote} = useActiveNoteContext()
     const startPage = token === null ? "authentication" : "arc-browser"
     const [page, setPage] = useState<PageState>(startPage);
@@ -19,19 +19,20 @@ export default function PageContextProvider({ children }: { children: React.Reac
         setPage("arc-browser")
     }
 
-    const setRepositoryAndNavigate = (notesState: NotesState) => {
-        setNotes(notesState)
+    const setRepositoryAndNavigate = (repo: Repository) => {
+        setActiveRepository(repo)
         setPage("notes-browser")
     }
 
-    const setActiveNoteAndNavigate = (note: NoteRef) => {
+    const setActiveNoteAndNavigate = (note: Note) => {
         setActiveNote(note)
         setPage("note-editor")
     }
 
     const logoutAndNavigate = () => {
         setToken(null)
-        setNotes(null)
+        setActiveRepository(null)
+        setActiveNote(null)
         setPage("authentication")
     }
 
@@ -40,7 +41,7 @@ export default function PageContextProvider({ children }: { children: React.Reac
             setError("You must be authenticated to access this page: " + page + ".")
             return
         }
-        if (notes === null && page === "notes-browser") {
+        if (activeRepository === null && page === "notes-browser") {
             setError("You must have a repository selected to access this page: " + page + ".")
             return
         }
