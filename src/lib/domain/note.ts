@@ -30,6 +30,24 @@ export type OntologyAnnotation = {
 	comments: AnnotationComment[];
 };
 
+/**
+ * A note's full persistent state as a plain, JSON-serializable object — the
+ * form used to cache a note locally (e.g. in IndexedDB) and rehydrate it.
+ * Unlike `toMarkdown`, it also carries the `baseCommitId` concurrency token,
+ * so a cached note saves with the same conflict guarantees as a freshly
+ * loaded one.
+ */
+export type NoteSnapshot = {
+	slug: string;
+	title: string;
+	content: string;
+	/** Calendar day, `YYYY-MM-DD`. */
+	date: string;
+	tags: OntologyAnnotation[];
+	assets: string[];
+	baseCommitId: string | null;
+};
+
 // ── Slug helpers ───────────────────────────────────────────────────
 // The slug is the on-disk identity (folder name and markdown basename).
 // It is intentionally narrower than a title: only A-Z, a-z, 0-9 and a
@@ -383,5 +401,46 @@ export default class Note {
 	/** A lightweight handle to this note — e.g. to key a cache or to reload it. */
 	toNoteRef(): NoteRef {
 		return { name: `${this.slug}.md`, path: this.filePath };
+	}
+
+	/**
+	 * Capture this note's full persistent state — including the
+	 * `baseCommitId` concurrency token — for local caching. The result is
+	 * meant to be persisted (and cloned) by the store; see {@link fromSnapshot}.
+	 */
+	toSnapshot(): NoteSnapshot {
+		return {
+			slug: this.slug,
+			title: this.title,
+			content: this.content,
+			date: formatDate(this.date),
+			tags: this.tags,
+			assets: this.assets,
+			baseCommitId: this.baseCommitId
+		};
+	}
+
+	/**
+	 * Rebuild a note from a {@link toSnapshot} payload, re-checking its
+	 * invariants so a corrupt cache entry fails cleanly rather than producing
+	 * a malformed note. The rehydrated note owns fresh copies of its arrays.
+	 */
+	static fromSnapshot(snapshot: NoteSnapshot): Result<Note> {
+		if (!SLUG_PATTERN.test(snapshot.slug)) {
+			return Failure(`"${snapshot.slug}" is not a valid note slug.`);
+		}
+		const date = parseDate(snapshot.date);
+		if (!date.success) return Failure(date.error);
+
+		const note = new Note(
+			snapshot.title,
+			snapshot.content,
+			date.value,
+			structuredClone(snapshot.tags),
+			[...snapshot.assets],
+			snapshot.slug
+		);
+		note.baseCommitId = snapshot.baseCommitId;
+		return Success(note);
 	}
 }
