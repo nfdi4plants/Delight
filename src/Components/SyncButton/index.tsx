@@ -78,6 +78,9 @@ export default function SyncButton({beforeSubmit}: {beforeSubmit?: () => Promise
             } else {
                 setError(result.error);
             }
+        } else {
+            const report = await syncAll();
+            setReport(report);
         }
         setIsSyncing(false);
     }

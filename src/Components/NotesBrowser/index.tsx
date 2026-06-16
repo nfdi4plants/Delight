@@ -40,9 +40,10 @@ function CreateNoteModal({isOpen, setIsOpen}: {isOpen: boolean, setIsOpen: (isOp
 
     return (
         <BaseModal isOpen={isOpen} onClose={() => setIsOpen(false)} title="Create Note">
-            <div className="flex flex-col gap-4">
-                <p className="text-sm opacity-60">A note will be created with the name in the format YYYYMMDD-note-name.md</p>
-                <input 
+            <div className="fieldset">
+                <p className="label whitespace-normal">A note will be created with the name in the format YYYYMMDD-note-name.md</p>
+                <p className="fieldset-legend">Title</p>
+                <input
                     required 
                     type="text" 
                     title="The title of the note, it can be changed later. It is used to generate the filename."
@@ -50,16 +51,20 @@ function CreateNoteModal({isOpen, setIsOpen}: {isOpen: boolean, setIsOpen: (isOp
                     className="input input-bordered w-full" 
                     value={input} 
                     onChange={handleOnChange}/>
-                <input 
-                    value={slug}
-                    onChange={e => setSlug(e.target.value)}
-                    type="text" 
-                    required
-                    pattern={SLUG_PATTERN.source}
-                    placeholder="filename" 
-                    className="validator input input-bordered w-full"
-                    title="The filename of the note, it must be unique and can only contain lowercase letters, numbers and dashes."
-                />
+                <p className="fieldset-legend">Filename</p>
+                <div className="join">
+                    <input 
+                        value={slug}
+                        onChange={e => setSlug(e.target.value)}
+                        type="text" 
+                        required
+                        pattern={SLUG_PATTERN.source}
+                        placeholder="filename" 
+                        className="validator input input-bordered w-full join-item"
+                        title="The filename of the note, it must be unique and can only contain lowercase letters, numbers and dashes."
+                    />
+                    <span className="join-item w-min input input-bordered cursor-not-allowed">.md</span>
+                </div>
                 <p className="validator-hint">
                     Filename must be alphanumeric, can only contain letters, numbers and dashes. Cannot be empty.
                 </p>
