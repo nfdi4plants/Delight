@@ -2,7 +2,7 @@ import {PageContext, type PageState} from "../../../Contexts/PageContext";
 import {useState} from "react";
 import useTokenContext from "../../../Contexts/TokenContext";
 import useNoteControllerContext from "../../../Contexts/NoteControllerContext";
-import type { GitlabToken, Repository } from "../../../lib/domain/types";
+import type { GitlabToken, Repository, NoteRef } from "../../../lib/domain/types";
 import useActiveNoteContext from "../../../Contexts/ActiveNoteContext";
 import { useErrorContext } from "../../../Contexts/ErrorContext";
 import type Note from "../../../lib/domain/note";
@@ -10,7 +10,7 @@ import type Note from "../../../lib/domain/note";
 export default function PageContextProvider({ children }: { children: React.ReactNode }) {
     const {token, setToken} = useTokenContext()
     const {setError} = useErrorContext()
-    const {activeRepository, setActiveRepository} = useNoteControllerContext()
+    const {activeRepository, setActiveRepository, getNote} = useNoteControllerContext()
     const {activeNote, setActiveNote} = useActiveNoteContext()
     const startPage = token === null ? "authentication" : "arc-browser"
     const [page, setPage] = useState<PageState>(startPage);
@@ -27,6 +27,16 @@ export default function PageContextProvider({ children }: { children: React.Reac
     const setActiveNoteAndNavigate = (note: Note) => {
         setActiveNote(note)
         setPage("note-editor")
+    }
+
+    const setActiveNoteByRefAndNavigate = async (noteRef: NoteRef) => {
+        const note = await getNote(noteRef)
+        if (note.success) {
+            setActiveNote(note.value)
+            setPage("note-editor")
+        } else {
+            setError(note.error)
+        }
     }
 
     const logoutAndNavigate = () => {
@@ -58,6 +68,7 @@ export default function PageContextProvider({ children }: { children: React.Reac
         setToken: setTokenAndNavigate,
         setRepository: setRepositoryAndNavigate,
         setActiveNote: setActiveNoteAndNavigate,
+        setActiveNoteByRef: setActiveNoteByRefAndNavigate,
         logout: logoutAndNavigate,
         setPage: handleNavigate
     }

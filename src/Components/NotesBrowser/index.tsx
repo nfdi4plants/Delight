@@ -5,11 +5,13 @@ import { type Repository, type NoteRef } from "../../lib/domain/types";
 import Note, {SLUG_PATTERN} from "../../lib/domain/note";
 import usePageContext from "../../Contexts/PageContext";
 import { useErrorContext } from "../../Contexts/ErrorContext";
+import BackButton from "../BackButton";
+import SyncButton from "../SyncButton";
 
 function CreateNoteModal({isOpen, setIsOpen}: {isOpen: boolean, setIsOpen: (isOpen: boolean) => void}) {
     const [input, setInput] = React.useState("")
     const [slug, setSlug] = React.useState("")
-    const {createLocalNote} = useNoteControllerContext()
+    const {saveNote} = useNoteControllerContext()
     const {setError} = useErrorContext();
     const {setActiveNote} = usePageContext();
 
@@ -27,7 +29,7 @@ function CreateNoteModal({isOpen, setIsOpen}: {isOpen: boolean, setIsOpen: (isOp
 
     const createNote = async () => {
         if (!isValid) return;
-        const response = await createLocalNote(input, slug, `# ${input}`)
+        const response = await saveNote(input, slug, `# ${input}`)
         if (response.success) {
             setActiveNote(response.value)
         } else {
@@ -92,10 +94,16 @@ function Dock() {
 }
 
 function NotesBrowserListItem({note}: {note: NoteRef}) {
+    const {setActiveNoteByRef} = usePageContext();
     return (
-        <li className="list-row">
-            <div>{note.name}</div>
-            <div className="text-xs uppercase font-semibold opacity-60">{note.path}</div>
+        <li 
+            onClick={() => setActiveNoteByRef(note)}
+            className="list-row hover:bg-base-200 cursor-pointer"
+        >
+            <div>
+                <div>{note.name}</div>
+                <div className="text-xs font-semibold opacity-60">{note.path}</div>
+            </div>
         </li>
     )
 }
@@ -119,29 +127,14 @@ function NotesBrowserList({notes}: {notes: NoteRef[]}) {
     )
 }
 
-function Metadata({repository, listNotes}: {repository: Repository, listNotes: (refresh?: boolean | undefined) => Promise<void>}) {
-    const {setPage} = usePageContext()
+function Metadata({repository}: {repository: Repository}) {
 
     return (
         <div className="flex flex-col p-2 gap-1">
             <div className="flex items-center gap-2">
-                <button 
-                    className="btn btn-sm btn-square btn-primary" 
-                    onClick={() => setPage("arc-browser")}
-                    title="Back to ARC browser"
-                    aria-label="Back to ARC browser"
-                >
-                    <i className="iconify mdi--arrow-left-bold-box-outline size-5"></i>
-                </button>
-                <button 
-                    className="btn btn-sm btn-square btn-secondary"
-                    onClick={() => listNotes(true)}
-                    title="Refresh notes list"
-                    aria-label="Refresh notes list"
-                >
-                    <i className="iconify mdi--cloud-refresh size-5"></i>
-                </button>
+                <BackButton targetPage="arc-browser" />
                 <h1 className="text-2xl font-bold">{repository.name}</h1>
+                <SyncButton />
             </div>
             {repository.description && <p className="text-sm opacity-70">{repository.description}</p>}
         </div>
@@ -152,11 +145,11 @@ export default function NotesBrowser() {
     const [notes, setNotes] = React.useState<NoteRef[]>([])
     const {setError} = useErrorContext()
     const [isLoading, setIsLoading] = React.useState(true)
-    const {activeRepository, listNotes} = useNoteControllerContext()
+    const {activeRepository, getList: listNotes} = useNoteControllerContext()
 
-    const fetchNotes = async (refresh?: boolean) => {
+    const fetchNotes = async () => {
         setIsLoading(true)
-        const response = await listNotes(refresh)
+        const response = await listNotes()
         if (response.success) {
             setNotes(response.value)
         } else {
@@ -179,7 +172,7 @@ export default function NotesBrowser() {
                         <div className="text-sm opacity-40">Connect an ARC to view its notes</div>
                     </div>
                 : <>
-                    <Metadata repository={activeRepository} listNotes={fetchNotes} />
+                    <Metadata repository={activeRepository} />
                     {isLoading ? 
                         <div className="flex flex-col items-center gap-4 py-8">
                             <span className="loading loading-spinner text-primary"></span>
