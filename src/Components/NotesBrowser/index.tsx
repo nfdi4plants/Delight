@@ -1,25 +1,30 @@
 import React from "react";
 import BaseModal from "../BaseModal";
 import useNotesStateContext from "../../Contexts/NotesStateContext";
-// import useTokenContext from "../../Contexts/TokenContext";
-// import useErrorContext from "../../Contexts/ErrorContext";
 import { type Repository, type NoteRef } from "../../lib/domain/types";
-// import Note from "../../lib/domain/note";
-import { NotesTitlePattern } from "../../lib/services/notes";
+import Note, {SLUG_PATTERN} from "../../lib/domain/note";
 import usePageContext from "../../Contexts/PageContext";
 
 function CreateNoteModal({isOpen, setIsOpen}: {isOpen: boolean, setIsOpen: (isOpen: boolean) => void}) {
     const [input, setInput] = React.useState("")
-    // const {token} = useTokenContext()
-    // const {setError} = useErrorContext()
-    // const {notes} = useNotesStateContext()
+    const [slug, setSlug] = React.useState("")
 
-    const isValid = NotesTitlePattern.test(input)
+    const handleOnChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const value = e.target.value
+        const slug = Note.slugify(value)
+        if (slug) {
+            setInput(value)
+            setSlug(slug)
+        }
+        setInput(value)
+    }
+
+    const isValid = SLUG_PATTERN.test(slug)
 
     const createNote = async () => {
-        // const note = Note.create(input, `# ${input}`)
-        console.log("Creating note with title: " + input)
-        
+        if (!isValid) return;
+        const note = Note.create(input, slug, `# ${input}`)   
+        console.log(note)  
     }
 
     return (
@@ -27,15 +32,25 @@ function CreateNoteModal({isOpen, setIsOpen}: {isOpen: boolean, setIsOpen: (isOp
             <div className="flex flex-col gap-4">
                 <p className="text-sm opacity-60">A note will be created with the name in the format YYYYMMDD-note-name.md</p>
                 <input 
-                    pattern={NotesTitlePattern.source}
                     required 
                     type="text" 
+                    title="The title of the note, it can be changed later. It is used to generate the filename."
                     placeholder="Note name" 
-                    className="validator input input-bordered w-full" 
+                    className="input input-bordered w-full" 
                     value={input} 
-                    onChange={e => setInput(e.target.value)}/>
+                    onChange={handleOnChange}/>
+                <input 
+                    value={slug}
+                    onChange={e => setSlug(e.target.value)}
+                    type="text" 
+                    required
+                    pattern={SLUG_PATTERN.source}
+                    placeholder="filename" 
+                    className="validator input input-bordered w-full"
+                    title="The filename of the note, it must be unique and can only contain lowercase letters, numbers and dashes."
+                />
                 <p className="validator-hint">
-                    Must be alphanumeric, can only contain letters, numbers and dashes. Cannot be empty.
+                    Filename must be alphanumeric, can only contain letters, numbers and dashes. Cannot be empty.
                 </p>
                 <button
                     className="btn btn-primary w-full" 

@@ -2,9 +2,10 @@ import {PageContext, type PageState} from "../../../Contexts/PageContext";
 import {useState} from "react";
 import useTokenContext from "../../../Contexts/TokenContext";
 import useNotesStateContext, { type NotesState } from "../../../Contexts/NotesStateContext";
-import type { GitlabToken, NoteRef } from "../../../lib/domain/types";
+import type { GitlabToken } from "../../../lib/domain/types";
 import useActiveNoteContext from "../../../Contexts/ActiveNoteContext";
 import { useErrorContext } from "../../../Contexts/ErrorContext";
+import type Note from "../../../lib/domain/note";
 
 
 export default function PageContextProvider({ children }: { children: React.ReactNode }) {
@@ -24,7 +25,7 @@ export default function PageContextProvider({ children }: { children: React.Reac
         setPage("notes-browser")
     }
 
-    const setActiveNoteAndNavigate = (note: NoteRef) => {
+    const setActiveNoteAndNavigate = (note: Note) => {
         setActiveNote(note)
         setPage("note-editor")
     }
