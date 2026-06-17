@@ -11,6 +11,17 @@ export type GitlabToken = Brand<string, 'GitlabToken'>;
 // These mirror the relevant subset of the GitLab REST API responses
 // (snake_case, as the wire delivers them) — no separate mapping layer.
 
+/**
+ * The currently-authenticated GitLab user, as returned by the `/user`
+ * endpoint. Only the fields the app surfaces are modelled.
+ */
+export type GitlabUser = {
+	id: number;
+	username: string;
+	name: string;
+	avatar_url: string | null;
+};
+
 export type Repository = {
 	id: number;
 	name: string;

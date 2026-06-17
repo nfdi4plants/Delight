@@ -1,6 +1,55 @@
+import { useEffect, useState } from 'react'
 import Navbar from '../Navbar'
 import Title from '../Title'
 import usePageContext from '../../Contexts/PageContext'
+import useTokenContext from '../../Contexts/TokenContext'
+import { getCurrentUser } from '../../lib/services/git-service'
+import type { GitlabUser } from '../../lib/domain/types'
+
+const ISSUES_URL = 'https://github.com/nfdi4plants/Delight/issues'
+
+function ReportIssueButton() {
+    return (
+        <a
+            className="btn btn-sm btn-outline w-full"
+            href={ISSUES_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+        >
+            <i className="iconify mdi--bug-outline size-4" data-icon="mdi:bug-outline"></i>
+            Report an issue
+        </a>
+    )
+}
+
+function CurrentUser() {
+    const { token } = useTokenContext()
+    const [user, setUser] = useState<GitlabUser | null>(null)
+
+    useEffect(() => {
+        if (token === null) {
+            setUser(null)
+            return
+        }
+        let cancelled = false
+        getCurrentUser(token).then((result) => {
+            if (!cancelled && result.success) {
+                setUser(result.value)
+            }
+        })
+        return () => {
+            cancelled = true
+        }
+    }, [token])
+
+    if (user === null) return null
+
+    return (
+        <div className="text-sm text-base-content/70">
+            Logged in as <span className="font-semibold text-base-content">{user.name}</span> (@{user.username})
+        </div>
+    )
+}
 
 function LogoutButton() {
     const { logout } = usePageContext()
@@ -38,7 +87,12 @@ export default function Layout ({ children }: { children: React.ReactNode }) {
                             <i className="iconify mdi--close size-6" data-icon="mdi:close"></i>
                         </label>
                     </div>
-                    <LogoutButton />
+                    <div className="flex flex-col gap-3">
+                        <CurrentUser />
+                        <LogoutButton />
+                        <div className="divider my-0"></div>
+                        <ReportIssueButton />
+                    </div>
                 </div>
             </div>
         </div>

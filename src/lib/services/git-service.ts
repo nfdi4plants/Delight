@@ -1,4 +1,4 @@
-import type { GitlabToken, Repository, NoteRef, MergeRequest } from '../domain/types';
+import type { GitlabToken, GitlabUser, Repository, NoteRef, MergeRequest } from '../domain/types';
 import { type Result, Success, Failure, bindAsync, map } from '../domain/result';
 
 // Base URL of the GitLab instance. The `/api/v4` REST API lives below it.
@@ -150,12 +150,20 @@ async function apiGetAll<T>(
 }
 
 /**
+ * Fetch the currently-authenticated GitLab user. Doubles as the token
+ * check: requesting `/user` succeeds only for a valid token.
+ */
+export async function getCurrentUser(token: GitlabToken): Promise<Result<GitlabUser>> {
+	return bindAsync(apiGet('/user', token), readJson<GitlabUser>);
+}
+
+/**
  * Verify that a token is accepted by the GitLab instance by requesting the
  * currently-authenticated user. Returns `Success(null)` when the token is
  * valid, `Failure` with a human-readable reason otherwise.
  */
 export async function validateToken(token: GitlabToken): Promise<Result<null>> {
-	const result = await apiGet('/user', token);
+	const result = await getCurrentUser(token);
 	return result.success ? Success(null) : Failure(result.error);
 }
 
