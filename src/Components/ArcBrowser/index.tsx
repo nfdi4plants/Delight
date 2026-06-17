@@ -69,7 +69,7 @@ function EmptyView() {
 function ArcBrowserList({repos}: {repos: Repository[]}) {
 
     return (
-        <ul className="list max-w-md mx-auto overflow-y-auto pb-48">
+        <ul className="list grow max-w-md mx-auto overflow-y-auto pb-48">
     
             <li className="p-4 pb-2 text-xs opacity-60 tracking-wide">Your ARCs</li>
             
@@ -154,7 +154,7 @@ export default function ArcBrowser() {
     }, [token])
 
     return (
-        <div className="h-full">
+        <div className="h-full overflow-hidden flex flex-col">
             {isLoading ? (
                     <LoadingSpinner />
                 ) : repos.length === 0 ? (

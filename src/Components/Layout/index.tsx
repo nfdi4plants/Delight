@@ -25,7 +25,7 @@ export default function Layout ({ children }: { children: React.ReactNode }) {
             <input id={drawerId} type="checkbox" className="drawer-toggle" />
             <div className="drawer-content h-screen w-screen flex flex-col overflow-hidden">
                 <Navbar drawerId={drawerId} />
-                <div className="grow overflow-y-scroll">
+                <div className="grow overflow-hidden">
                     {children}
                 </div>
             </div>

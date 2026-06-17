@@ -120,7 +120,7 @@ function NotesBrowserListItem({note}: {note: NoteRef}) {
 function NotesBrowserList({notes}: {notes: NoteRef[]}) {
 
     return (
-        <ul className="list max-w-md mx-auto grow overflow-y-auto">
+        <ul className="list grow max-w-md overflow-y-auto pb-48">
 
             {
                 notes.length === 0 ? (
@@ -173,7 +173,7 @@ export default function NotesBrowser() {
     }, [])
 
     return (
-        <div className="h-full w-full">
+        <div className="h-full w-full overflow-hidden flex flex-col">
             {
                 activeRepository === null ?
                     <div className="flex flex-col items-center gap-4 py-8">
