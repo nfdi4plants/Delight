@@ -387,13 +387,16 @@ function AssetsListItem({asset}: {asset: Asset}) {
         (
             asset.type.startsWith("audio/") ?
                 <AssetsListAudioItem asset={asset} />
+            : asset.type.startsWith("video/") ? (
+                <AssetsListAudioItem asset={asset} />
+            )
             : asset.type.startsWith("image/") ? (
                 <AssetsListImageItem asset={asset} />
             ) : asset.type.startsWith("text/") ? (
                 <AssetsListTextItem asset={asset} />
             ) :
             (
-                <div key={asset.path} className="flex flex-col gap-1 p-2">
+                <div key={asset.path} className="flex w-full items-center gap-3 rounded-lg border border-base-300 p-2 text-left hover:bg-base-200">
                     <div className="font-mono text-sm">{asset.path}</div>
                     <div className="text-xs opacity-60">
                         {asset.type} · {(asset.size / 1024).toFixed(1)} KB
@@ -419,7 +422,7 @@ function AssetsButton({note}: {note: Note}) {
                 title="Assets"
                 classNames={{ modal: "modal-bottom" }}
             >
-                <div className="flex flex-col gap-2 divide-y">
+                <div className="flex flex-col gap-2">
                     {note.assets.length === 0 ? (
                         <div className="flex flex-col items-center gap-4 py-8">
                             <div className="text-2xl opacity-60">No assets found</div>
