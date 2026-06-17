@@ -1,7 +1,7 @@
 import { type Result, Success, Failure } from '../domain/result';
 import type { GitlabToken, Repository, NoteRef } from '../domain/types';
-import Note from '../domain/note';
-import Asset from '../domain/asset';
+import Note, { type NoteSnapshot } from '../domain/note';
+import Asset, { type AssetSnapshot } from '../domain/asset';
 import {
 	listNotes,
 	getNote as fetchNoteFile,
@@ -34,6 +34,31 @@ export type SyncReport =
 
 function basename(path: string): string {
 	return path.split('/').pop() ?? path;
+}
+
+// Whether two snapshots would serialize to the same files on the server —
+// i.e. pushing the second after the first is committed would be an empty
+// commit. Compares only what actually reaches a commit, so a no-op save is
+// never mistaken for a change: the note's markdown fields (body trimmed, as
+// toMarkdown emits it) and its asset set by path + byte length. It ignores what
+// does not land in a commit — sync bookkeeping like `baseCommitId`, and an
+// asset's MIME `type`, which is not committed and can differ between a locally
+// captured blob and the same bytes downloaded back from GitLab.
+function sameContent(a: NoteSnapshot, b: NoteSnapshot): boolean {
+	const sameNote =
+		a.title === b.title &&
+		a.date === b.date &&
+		a.content.trim() === b.content.trim() &&
+		JSON.stringify(a.tags) === JSON.stringify(b.tags);
+	return sameNote && sameAssets(a.assets, b.assets);
+}
+
+function sameAssets(a: AssetSnapshot[], b: AssetSnapshot[]): boolean {
+	if (a.length !== b.length) return false;
+	const key = (x: AssetSnapshot) => `${x.path} ${x.blob.size}`;
+	const as = a.map(key).sort();
+	const bs = b.map(key).sort();
+	return as.every((k, i) => k === bs[i]);
 }
 
 /**
@@ -129,26 +154,31 @@ export default class NoteController {
 	/**
 	 * Save a note locally and mark it dirty. This does **not** touch GitLab —
 	 * the note is queued for the next {@link sync}. Works for both new notes
-	 * and edits to existing ones.
+	 * and edits to existing ones. A save that doesn't change the note's content
+	 * is a no-op: it leaves the cached copy and the dirty set untouched, so the
+	 * UI can re-save freely (e.g. on every sync click) without queuing an empty
+	 * commit.
 	 */
 	async saveNote(note: Note): Promise<void> {
 		const snapshot = note.toSnapshot();
+		const cached = await this.store.readNote(this.repo.id, note.filePath);
 
 		// The note may be on the server already even though this instance has no
 		// commit token — the UI rebuilds every edit as a fresh `Note.create`,
 		// which can't carry one. Recover the token (note and assets, by path)
 		// from the cached copy, so an edit to a synced note commits as a guarded
 		// update instead of a create that GitLab rejects as "already exists".
-		if (snapshot.baseCommitId === null) {
-			const cached = await this.store.readNote(this.repo.id, note.filePath);
-			if (cached && cached.baseCommitId !== null) {
-				snapshot.baseCommitId = cached.baseCommitId;
-				const tokens = new Map(cached.assets.map((asset) => [asset.path, asset.baseCommitId]));
-				for (const asset of snapshot.assets) {
-					if (asset.baseCommitId === null) asset.baseCommitId = tokens.get(asset.path) ?? null;
-				}
+		if (snapshot.baseCommitId === null && cached && cached.baseCommitId !== null) {
+			snapshot.baseCommitId = cached.baseCommitId;
+			const tokens = new Map(cached.assets.map((asset) => [asset.path, asset.baseCommitId]));
+			for (const asset of snapshot.assets) {
+				if (asset.baseCommitId === null) asset.baseCommitId = tokens.get(asset.path) ?? null;
 			}
 		}
+
+		// Nothing actually changed since the cached copy — don't dirty it, so the
+		// next sync stays idle instead of pushing an empty commit.
+		if (cached && sameContent(cached, snapshot)) return;
 
 		await this.store.writeNote(this.repo.id, note.filePath, snapshot);
 
@@ -213,10 +243,13 @@ export default class NoteController {
 			// Pin each pushed note's cached snapshot to the commit it landed at, so
 			// a later edit syncs as a guarded update rather than re-creating it.
 			await this.markSynced(notes, report.commitId);
-		} else if (remaining.length === 0) {
+		} else if (report.kind === 'merge-request') {
 			// Diverted to a merge request: the changes are not on the default
 			// branch yet, so drop the cached content and let the next read pull
-			// fresh once the request is merged.
+			// fresh once the request is merged. (Crucially, do NOT clear on `idle`
+			// — that would wipe the cached `baseCommitId` tokens of already-synced
+			// notes, making the next save treat them as new and push an empty,
+			// conflicting commit.)
 			await this.store.clearNotes(this.repo.id);
 		}
 

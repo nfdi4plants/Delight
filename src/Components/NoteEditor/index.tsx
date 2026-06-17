@@ -456,19 +456,26 @@ export default function NoteEditor() {
         setValue(value);
     }
 
+    // Fold the editor's current text into the note before persisting it: the
+    // edited markdown lives in `value`, while `activeNote` still holds the text
+    // as it was loaded — saving `activeNote` as-is would drop every edit.
+    const persist = (): Promise<Note> | null => {
+        if (!activeNote) return null;
+        activeNote.content = value;
+        setActiveNote(activeNote);
+        return saveNote(activeNote);
+    }
+
     const handleBeforePageChange = () => {
-        if (!activeNote) return;
-        console.log("Saving note before page change...");
-        console.log(activeNote);
-        saveNote(activeNote)
+        persist();
     }
 
     const handleBeforeSubmit: () => Promise<Result<Note>> = async () => {
-        if (!activeNote) {
+        const saved = persist();
+        if (!saved) {
             return { success: false, error: "No active note to save" };
         }
-        const response = await saveNote(activeNote)
-        return {success: true, value: response}
+        return { success: true, value: await saved };
     }
 
     if (!activeNote) return (

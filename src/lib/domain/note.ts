@@ -283,7 +283,11 @@ export default class Note {
 		}
 
 		lines.push('---');
-		return `${lines.join('\n')}\n\n${this.content}\n`;
+		// Trim the body so serialization is a fixed point: `fromMarkdown` trims
+		// on the way in, so emitting the body untrimmed here would make a note's
+		// markdown change by a stray newline every server round-trip — and push
+		// an otherwise-empty commit. Trimming both directions keeps it stable.
+		return `${lines.join('\n')}\n\n${this.content.trim()}\n`;
 	}
 
 	addAsset(asset: Asset): Result<Note> {
