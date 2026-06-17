@@ -458,8 +458,6 @@ export default function NoteEditor() {
 
     const handleBeforePageChange = () => {
         if (!activeNote) return;
-        console.log("Saving note before page change...");
-        console.log(activeNote);
         saveNote(activeNote)
     }
 

@@ -38,7 +38,6 @@ export default function NotesStateContextProvider({ children }: { children: Reac
         },
         saveNote: async (note: Note) => {
             const controller = ensureController(activeRepository);
-            console.log("Saving note object:", note);
             await controller.saveNote(note);
             return note
         },
