@@ -485,6 +485,7 @@ export default function NoteEditor() {
     );
     return (
         <div className="h-full overflow-hidden flex flex-col">
+            {/* Could be refactored into ActionBar component */}
             <div className="flex items-center gap-2 p-2">
                 <BackButton targetPage="notes-browser" beforePageChange={handleBeforePageChange} />
                 <h1 className="text-2xl font-bold truncate">{activeNote.title}</h1>

@@ -8,6 +8,7 @@ import { type Repository } from "../../lib/domain/types";
 import BaseModal from "../BaseModal";
 import usePageContext from "../../Contexts/PageContext";
 import OpenExternalRepoButton from "../OpenExternalRepoButton";
+import ActionBar from "../ActionBar";
 
 interface ArcBrowserListItemProps {
     repository: Repository;
@@ -70,8 +71,6 @@ function ArcBrowserList({repos}: {repos: Repository[]}) {
 
     return (
         <ul className="list grow max-w-md mx-auto overflow-y-auto pb-48">
-    
-            <li className="p-4 pb-2 text-xs opacity-60 tracking-wide">Your ARCs</li>
             
             {repos.map(repo => <ArcBrowserListItem key={repo.id} repository={repo} />)} 
         </ul>
@@ -155,6 +154,14 @@ export default function ArcBrowser() {
 
     return (
         <div className="h-full overflow-hidden flex flex-col">
+            <ActionBar 
+                items={[
+                    {type: "title", label: "Your ARCs"}
+                ]} 
+                itemsTrailing={[
+                    {type: "button", label: "Refresh", onClick: fetchRepos, icon: "mdi--reload"}
+                ]} 
+            />
             {isLoading ? (
                     <LoadingSpinner />
                 ) : repos.length === 0 ? (

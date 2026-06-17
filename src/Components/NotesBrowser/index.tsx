@@ -7,6 +7,7 @@ import usePageContext from "../../Contexts/PageContext";
 import { useErrorContext } from "../../Contexts/ErrorContext";
 import BackButton from "../BackButton";
 import SyncButton from "../SyncButton";
+import ActionBar from "../ActionBar";
 
 function CreateNoteModal({isOpen, setIsOpen}: {isOpen: boolean, setIsOpen: (isOpen: boolean) => void}) {
     const [input, setInput] = React.useState("")
@@ -139,13 +140,13 @@ function NotesBrowserList({notes}: {notes: NoteRef[]}) {
 function Metadata({repository}: {repository: Repository}) {
 
     return (
+        // Could be refactored into ActionBar component
         <div className="flex flex-col p-2 gap-1">
             <div className="flex items-center gap-2">
                 <BackButton targetPage="arc-browser" />
                 <h1 className="text-2xl font-bold">{repository.name}</h1>
                 <SyncButton />
             </div>
-            {repository.description && <p className="text-sm opacity-70">{repository.description}</p>}
         </div>
     )
 }
