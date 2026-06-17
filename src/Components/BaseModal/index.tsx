@@ -15,7 +15,7 @@ type BaseModalProps = {
 export default function BaseModal({isOpen, onClose, title, children, classNames}: BaseModalProps) {
     return (
         createPortal(
-            <dialog className={`modal ${isOpen ? "modal-open" : ""} ${classNames?.modal || ""}`}>
+            <dialog className={`z-10 modal ${isOpen ? "modal-open" : ""} ${classNames?.modal || ""}`}>
                 <div className={`modal-box ${classNames?.modalBox || ""}`}>
                     <h3 className={`text-lg font-bold ${classNames?.title || ""}`}>{title}</h3>
                     <div className="py-4">{children}</div>
@@ -25,6 +25,9 @@ export default function BaseModal({isOpen, onClose, title, children, classNames}
                         </form>
                     </div>
                 </div>
+                <form method="dialog" className="modal-backdrop">
+                    <button onClick={onClose}>close</button>
+                </form>
             </dialog>,
             document.body
         )

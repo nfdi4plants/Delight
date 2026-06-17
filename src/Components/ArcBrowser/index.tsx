@@ -83,8 +83,10 @@ function CreateArcModal({isOpen, setIsOpen}: {isOpen: boolean, setIsOpen: (isOpe
     const {token} = useTokenContext()
     const {setError} = useErrorContext()
     const {setRepository} = usePageContext()
+    const [isCreating, setIsCreating] = React.useState(false)
 
     const createArc = async () => {
+        setIsCreating(true)
         const repository = await gitlabApi.createRepo(token as GitlabToken, input)
         if (repository.success) {
             setRepository(repository.value)
@@ -92,6 +94,7 @@ function CreateArcModal({isOpen, setIsOpen}: {isOpen: boolean, setIsOpen: (isOpe
             const msg = `Failed to create ARC: ${repository.error}`
             setError(msg)
         }
+        setIsCreating(false)
         setIsOpen(false)
     }
 
@@ -99,7 +102,9 @@ function CreateArcModal({isOpen, setIsOpen}: {isOpen: boolean, setIsOpen: (isOpe
         <BaseModal isOpen={isOpen} onClose={() => setIsOpen(false)} title="Create ARC">
             <div className="flex flex-col gap-4">
                 <input type="text" placeholder="ARC name" className="input input-bordered w-full" value={input} onChange={(e) => setInput(e.target.value)}/>
-                <button className="btn btn-primary w-full" onClick={createArc}>Connect</button>
+                <button className="btn btn-primary w-full" onClick={createArc} disabled={isCreating}>
+                    {isCreating ? <span className="loading loading-spinner"></span> : "Connect"}
+                </button>
             </div>
         </BaseModal>
     )

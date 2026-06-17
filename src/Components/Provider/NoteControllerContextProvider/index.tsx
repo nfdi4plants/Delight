@@ -47,6 +47,10 @@ export default function NotesStateContextProvider({ children }: { children: Reac
             }
             return note;
         },
+        saveNoteObject: async (note: Note) => {
+            const controller = ensureController(activeRepository);
+            return controller.saveNote(note);
+        },
         syncAll: async () => {
             const controller = ensureController(activeRepository);
             return controller.sync();

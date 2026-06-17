@@ -11,6 +11,7 @@ export type NoteControllerContextType = {
     getList: () => Promise<Result<NoteRef[]>>;
     getNote: (noteRef: NoteRef) => Promise<Result<Note>>;
     saveNote: (name: string, slug: string, content?: string) => Promise<Result<Note>>;
+    saveNoteObject : (note: Note) => Promise<void>;
     syncAll: () => Promise<SyncReport>;
 }
 
@@ -20,6 +21,7 @@ export const NoteControllerContext = React.createContext<NoteControllerContextTy
     getList: async () => ({ success: false, error: "NoteController not initialized" }), // Default to an empty list of notes
     getNote: async (_) => ({ success: false, error: "NoteController not initialized" }), // Default to an error for getNote
     saveNote: async (_) => ({ success: false, error: "NoteController not initialized" }), // Default to an error for addNote
+    saveNoteObject: async (_) => { throw new Error("NoteController not initialized"); }, // Default to an error for saveNoteObject
     syncAll: async () => { throw new Error("NoteController not initialized"); } // Default to an error for syncAll
 })
 

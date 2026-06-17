@@ -8,12 +8,10 @@ import { createPortal } from "react-dom";
 
 function ReportToast({report, close}: {report: SyncReport | null, close: () => void}) {
 
-    if (!report) return null;
-
     const timerRef = useRef<number>(null);
 
     useEffect(() => {
-        if (report.kind === "idle" || report.kind === "uploaded") {
+        if (report && (report.kind === "idle" || report.kind === "uploaded")) {
             const timer = setTimeout(() => {
                 close();
             }, 3000);
@@ -26,6 +24,7 @@ function ReportToast({report, close}: {report: SyncReport | null, close: () => v
         }
     }, [report])
 
+    if (!report) return null;
     // check if close
     return (
         <div className="toast">
@@ -62,7 +61,7 @@ function ReportToast({report, close}: {report: SyncReport | null, close: () => v
     )
 }
 
-export default function SyncButton({beforeSubmit}: {beforeSubmit?: () => Promise<Result<any>>}) {
+export default function SyncButton({beforeSubmit, mlAuto = true}: {beforeSubmit?: () => Promise<Result<any>>, mlAuto?: boolean}) {
     const { syncAll } = useNoteControllerContext();
     const { setError } = useErrorContext();
     const [isSyncing, setIsSyncing] = useState(false);
@@ -95,7 +94,7 @@ export default function SyncButton({beforeSubmit}: {beforeSubmit?: () => Promise
 
             }
             <button 
-                className="btn btn-sm btn-square btn-secondary ml-auto"
+                className={`btn btn-sm btn-square btn-secondary ${mlAuto ? "ml-auto" : ""}`}
                 onClick={handleClick}
                 title="Refresh notes list"
                 aria-label="Refresh notes list"

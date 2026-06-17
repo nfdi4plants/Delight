@@ -3,6 +3,7 @@ import Asset from "../../lib/domain/asset";
 import type Note from "../../lib/domain/note";
 import { createTranscriber, isTranscriptionSupported, type Transcriber } from "../../lib/speech";
 import useErrorContext from "../../Contexts/ErrorContext";
+import { useNoteControllerContext } from "../../Contexts/NoteControllerContext";
 
 type AudioBoothProps = {
     // The note the memo is attached to. Its `assetsFolder` is the base
@@ -61,6 +62,7 @@ export default function AudioBooth({ note, onCapture }: AudioBoothProps) {
     const transcriberRef = useRef<Transcriber | null>(null);
     const transcriptFinalRef = useRef("");
     const { setError } = useErrorContext();
+    const {saveNoteObject} = useNoteControllerContext();
 
     const canTranscribe = useMemo(() => isTranscriptionSupported(), []);
     const canRecord = typeof MediaRecorder !== "undefined";
@@ -161,6 +163,7 @@ export default function AudioBooth({ note, onCapture }: AudioBoothProps) {
             setError(addedAudio.error);
             return;
         }
+        saveNoteObject(note); // Persist the note with the new asset before calling onCapture, so the note's state is up-to-date.   
         onCapture?.(audio.value);
 
         // Save the transcript as a sibling .txt, named after the audio file.
@@ -230,7 +233,8 @@ export default function AudioBooth({ note, onCapture }: AudioBoothProps) {
                     </label>
 
                     {canTranscribe && (
-                        <label className="form-control w-full">
+                        <label className="fieldset w-full">
+                            <legend className="fieldset-legend">Transcript options</legend>
                             <div className="label cursor-pointer justify-start gap-2 px-0">
                                 <input
                                     type="checkbox"
@@ -238,18 +242,20 @@ export default function AudioBooth({ note, onCapture }: AudioBoothProps) {
                                     checked={saveTranscript}
                                     onChange={(e) => setSaveTranscript(e.target.checked)}
                                 />
-                                <span className="label-text">
-                                    Save transcript as {filename.replace(/\.[^/.]+$/, "") || "memo"}.txt
+                                <span>
+                                    Save transcript
                                 </span>
                             </div>
-                            {saveTranscript && (
-                                <textarea
-                                    className="textarea textarea-bordered h-28 w-full"
-                                    value={transcriptText}
-                                    onChange={(e) => setTranscriptText(e.target.value)}
-                                    placeholder="Transcript (edit as needed)…"
-                                />
-                            )}
+                            <p className="label">
+                                Will be saved as "{filename.replace(/\.[^/.]+$/, "") || "memo"}.txt"
+                            </p>
+                            <textarea
+                                className="textarea textarea-bordered h-28 w-full"
+                                value={transcriptText}
+                                onChange={(e) => setTranscriptText(e.target.value)}
+                                placeholder="Transcript (edit as needed)…"
+                                disabled={!saveTranscript}
+                            />
                         </label>
                     )}
 
@@ -288,21 +294,26 @@ export default function AudioBooth({ note, onCapture }: AudioBoothProps) {
             ) : (
                 <div className="flex flex-col items-center gap-3">
                     {canTranscribe ? (
-                        <label className="label cursor-pointer gap-2">
-                            <input
-                                type="checkbox"
-                                className="toggle toggle-sm"
-                                checked={saveTranscript}
-                                onChange={(e) => setSaveTranscript(e.target.checked)}
-                            />
-                            <span className="label-text">Transcribe while recording (unreliable, sends audio to Google servers)</span>
-                        </label>
+                        <>
+                            <label className="label cursor-pointer gap-2">
+                                <input
+                                    type="checkbox"
+                                    className="toggle toggle-sm"
+                                    checked={saveTranscript}
+                                    onChange={(e) => setSaveTranscript(e.target.checked)}
+                                />
+                                <span className="label-text">Transcribe while recording</span>
+                            </label>
+                            <span className="text-xs opacity-50">
+                                This can be unreliable, sends audio to Google servers.
+                            </span>
+                        </>
                     ) : (
                         <span className="text-xs opacity-50">
                             Live transcription isn't available in this browser.
                         </span>
                     )}
-                    <button className="btn btn-primary btn-lg" onClick={startRecording}>
+                    <button className="btn btn-primary btn-xl m-4" onClick={startRecording}>
                         <i className="iconify mdi--microphone size-6" />
                         Record
                     </button>

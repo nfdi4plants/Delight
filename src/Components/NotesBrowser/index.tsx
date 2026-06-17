@@ -14,6 +14,7 @@ function CreateNoteModal({isOpen, setIsOpen}: {isOpen: boolean, setIsOpen: (isOp
     const {saveNote} = useNoteControllerContext()
     const {setError} = useErrorContext();
     const {setActiveNote} = usePageContext();
+    const [isCreating, setIsCreating] = React.useState(false)
 
     const handleOnChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const value = e.target.value
@@ -29,12 +30,14 @@ function CreateNoteModal({isOpen, setIsOpen}: {isOpen: boolean, setIsOpen: (isOp
 
     const createNote = async () => {
         if (!isValid) return;
+        setIsCreating(true)
         const response = await saveNote(input, slug, `# ${input}`)
         if (response.success) {
             setActiveNote(response.value)
         } else {
             setError(response.error)
         }
+        setIsCreating(false)
         setIsOpen(false)
     }
 
@@ -71,8 +74,8 @@ function CreateNoteModal({isOpen, setIsOpen}: {isOpen: boolean, setIsOpen: (isOp
                 <button
                     className="btn btn-primary w-full" 
                     onClick={createNote} 
-                    disabled={!isValid}>
-                        Create
+                    disabled={!isValid || isCreating}>
+                        {isCreating ? <span className="loading loading-spinner"></span> : "Create"}
                 </button>
             </div>
         </BaseModal>
