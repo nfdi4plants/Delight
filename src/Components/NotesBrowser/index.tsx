@@ -31,11 +31,12 @@ function CreateNoteModal({isOpen, setIsOpen}: {isOpen: boolean, setIsOpen: (isOp
     const createNote = async () => {
         if (!isValid) return;
         setIsCreating(true)
-        const response = await saveNote(input, slug, `# ${input}`)
-        if (response.success) {
-            setActiveNote(response.value)
+        const note = Note.create(input, slug, `# ${input}`)
+        if (note.success) {
+            await saveNote(note.value)
+            setActiveNote(note.value)
         } else {
-            setError(response.error)
+            setError(note.error)
         }
         setIsCreating(false)
         setIsOpen(false)

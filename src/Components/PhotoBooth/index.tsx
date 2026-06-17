@@ -3,7 +3,6 @@ import Asset from "../../lib/domain/asset";
 import type Note from "../../lib/domain/note";
 import { embedExif, type GeoCoords } from "../../lib/exif";
 import useErrorContext from "../../Contexts/ErrorContext";
-import { useNoteControllerContext } from "../../Contexts/NoteControllerContext";
 
 // Resolve the device's current location, or `null` if unavailable or denied.
 // Never rejects, so a missing fix degrades to "no location" rather than an
@@ -35,6 +34,8 @@ type PhotoBoothProps = {
     mimeType?: "image/jpeg" | "image/png";
     // JPEG quality, 0–1. Ignored for PNG.
     quality?: number;
+    // Function to update the note state.
+    setNote: (note: Note) => void;
 };
 
 // A sensible default file name, distinct per capture so two photos in the
@@ -52,13 +53,13 @@ function defaultFilename(mimeType: string): string {
  */
 export default function PhotoBooth({
     note,
+    setNote,
     onCapture,
     mimeType = "image/jpeg",
     quality = 0.92,
 }: PhotoBoothProps) {
     const videoRef = useRef<HTMLVideoElement>(null);
     const streamRef = useRef<MediaStream | null>(null);
-    const {saveNoteObject} = useNoteControllerContext();
     const { setError } = useErrorContext();
 
     // The accepted-but-not-yet-saved still, as an object URL for preview.
@@ -205,11 +206,11 @@ export default function PhotoBooth({
             setError(added.error);
             return;
         }
-        saveNoteObject(added.value);
+        setNote(added.value);
 
         onCapture?.(asset.value);
         setPreview(null);
-    }, [preview, filename, note, onCapture, setError, saveNoteObject]);
+    }, [preview, filename, note, onCapture, setError, setNote]);
 
     // The folder shown read-only beside the editable file name.
     const folderHint = useMemo(() => `${note.assetsFolder}/`, [note]);

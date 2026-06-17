@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { Suspense, useState } from "react";
 import MDEditor, { commands } from '@uiw/react-md-editor';
 import rehypeSanitize from "rehype-sanitize";
 import useActiveNoteContext from "../../Contexts/ActiveNoteContext";
@@ -7,12 +7,13 @@ import BackButton from "../BackButton";
 import SyncButton from "../SyncButton";
 import type Note from "../../lib/domain/note";
 import type { Result } from "../../lib/domain/result";
-import PhotoBooth from "../PhotoBooth";
-import AudioBooth from "../AudioBooth";
 import BaseModal from "../BaseModal";
 import type Asset from "../../lib/domain/asset";
 import piexif from "piexifjs";
 import { createPortal } from "react-dom";
+
+const LazyPhotoBooth = React.lazy(() => import("../PhotoBooth"));
+const LazyAudioBooth = React.lazy(() => import("../AudioBooth"));
 
 // Read the EXIF back out of a captured JPEG so we can prove it was embedded.
 // Returns a short human-readable summary, or a note for non-JPEG/no-EXIF.
@@ -47,37 +48,57 @@ async function readExifSummary(blob: Blob): Promise<string> {
 
 type DockModalType = "photo" | "audio" | null;
 
-function PhotoBoothModal({note, isOpen, setIsOpen}: {note: Note, isOpen: boolean, setIsOpen: (isOpen: boolean) => void}) {
+function PhotoBoothModal({note, setNote, isOpen, setIsOpen}: {note: Note, isOpen: boolean, setIsOpen: (isOpen: boolean) => void, setNote: (note: Note) => void}) {
     return (
         <BaseModal isOpen={isOpen} onClose={() => setIsOpen(false)} title="Photo Booth">
-            <PhotoBooth 
-                note={note}
-            />
+            <Suspense fallback={
+                <div className="flex h-40 items-center justify-center">
+                    <span className="loading loading-spinner text-primary"></span>
+                </div>
+            }>
+                {isOpen ?
+                    <LazyPhotoBooth 
+                        note={note}
+                        setNote={setNote}
+                    />
+                : null}
+            </Suspense>
         </BaseModal>
     )
 }
 
-function AudioRecorderModal({note, isOpen, setIsOpen}: {note: Note, isOpen: boolean, setIsOpen: (isOpen: boolean) => void}) {
+function AudioRecorderModal({note, setNote, isOpen, setIsOpen}: {note: Note, setNote: (note: Note) => void, isOpen: boolean, setIsOpen: (isOpen: boolean) => void}) {
     return (
         <BaseModal isOpen={isOpen} onClose={() => setIsOpen(false)} title="Audio Recorder">
-            <AudioBooth 
-                note={note}
-            />
+            <Suspense fallback={
+                <div className="flex h-40 items-center justify-center">
+                    <span className="loading loading-spinner text-primary"></span>
+                </div>
+            }>
+                {isOpen ?
+                    <LazyAudioBooth 
+                        setNote={setNote}
+                        note={note}
+                    />
+                : null}
+            </Suspense>
         </BaseModal>
     )
 }
 
-function Dock({note}: {note: Note}) {
+function Dock({note, setNote}: {note: Note, setNote: (note: Note) => void}) {
     const [modalOpen, setModalOpen] = React.useState<DockModalType>(null);
 
     return (
         <>
             <PhotoBoothModal 
                 note={note} 
+                setNote={setNote}
                 isOpen={modalOpen === "photo"} 
                 setIsOpen={(isOpen) => setModalOpen(isOpen ? "photo" : null)} />
             <AudioRecorderModal
                 note={note}
+                setNote={setNote}
                 isOpen={modalOpen === "audio"}
                 setIsOpen={(isOpen) => setModalOpen(isOpen ? "audio" : null)} />
             <div className="dock bg-neutral text-neutral-content">
@@ -230,7 +251,7 @@ function AssetsListAudioItem({asset}: {asset: Asset}) {
                                 className="btn btn-sm btn-circle self-end"
                                 onClick={() => setOpen(false)}
                             >
-                                ✕
+                                <i className="iconify mdi--close size-4"></i>
                             </button>
 
                             <div>
@@ -426,8 +447,7 @@ function AssetsButton({note}: {note: Note}) {
 
 
 export default function NoteEditor() {
-    const {activeNote} = useActiveNoteContext();
-
+    const {activeNote, setActiveNote} = useActiveNoteContext();
     const {saveNote} = useNoteControllerContext();
     const [value, setValue] = React.useState<string>(activeNote ? activeNote.content : "");
 
@@ -438,15 +458,17 @@ export default function NoteEditor() {
 
     const handleBeforePageChange = () => {
         if (!activeNote) return;
-        saveNote(activeNote.title, activeNote.slug, value)
+        console.log("Saving note before page change...");
+        console.log(activeNote);
+        saveNote(activeNote)
     }
 
     const handleBeforeSubmit: () => Promise<Result<Note>> = async () => {
         if (!activeNote) {
-            return { success: false, error: "No active note to save" }
+            return { success: false, error: "No active note to save" };
         }
-        const response = await saveNote(activeNote.title, activeNote.slug, value)
-        return response
+        const response = await saveNote(activeNote)
+        return {success: true, value: response}
     }
 
     if (!activeNote) return (
@@ -475,7 +497,7 @@ export default function NoteEditor() {
                 ]}
                 className="grow"
             />
-            <Dock note={activeNote} />
+            <Dock note={activeNote} setNote={setActiveNote} />
         </div>
     );
 }

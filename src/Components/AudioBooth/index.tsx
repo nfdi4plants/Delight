@@ -3,12 +3,12 @@ import Asset from "../../lib/domain/asset";
 import type Note from "../../lib/domain/note";
 import { createTranscriber, isTranscriptionSupported, type Transcriber } from "../../lib/speech";
 import useErrorContext from "../../Contexts/ErrorContext";
-import { useNoteControllerContext } from "../../Contexts/NoteControllerContext";
 
 type AudioBoothProps = {
     // The note the memo is attached to. Its `assetsFolder` is the base
     // directory and the new Asset(s) are added to it on accept.
     note: Note;
+    setNote: (note: Note) => void;
     // Called once per asset added — the audio, and the transcript .txt when
     // one is saved. Lets a parent persist or close a surrounding modal.
     onCapture?: (asset: Asset) => void;
@@ -55,14 +55,13 @@ function formatDuration(totalSeconds: number): string {
  * speech and saves the transcript as a sibling `.txt` asset. Pure PWA: nothing
  * is uploaded; the bytes stay local until the note is synced.
  */
-export default function AudioBooth({ note, onCapture }: AudioBoothProps) {
+export default function AudioBooth({ note, setNote, onCapture }: AudioBoothProps) {
     const streamRef = useRef<MediaStream | null>(null);
     const recorderRef = useRef<MediaRecorder | null>(null);
     const chunksRef = useRef<Blob[]>([]);
     const transcriberRef = useRef<Transcriber | null>(null);
     const transcriptFinalRef = useRef("");
     const { setError } = useErrorContext();
-    const {saveNoteObject} = useNoteControllerContext();
 
     const canTranscribe = useMemo(() => isTranscriptionSupported(), []);
     const canRecord = typeof MediaRecorder !== "undefined";
@@ -163,7 +162,7 @@ export default function AudioBooth({ note, onCapture }: AudioBoothProps) {
             setError(addedAudio.error);
             return;
         }
-        saveNoteObject(note); // Persist the note with the new asset before calling onCapture, so the note's state is up-to-date.   
+        setNote(note); // trigger re-render with the new asset
         onCapture?.(audio.value);
 
         // Save the transcript as a sibling .txt, named after the audio file.
@@ -177,7 +176,10 @@ export default function AudioBooth({ note, onCapture }: AudioBoothProps) {
             } else {
                 const addedTxt = note.addAsset(txt.value);
                 if (!addedTxt.success) setError(addedTxt.error);
-                else onCapture?.(txt.value);
+                else {
+                    setNote(note); // trigger re-render with the new asset
+                    onCapture?.(txt.value);
+                }
             }
         }
 

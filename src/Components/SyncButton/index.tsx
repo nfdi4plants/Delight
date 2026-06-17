@@ -27,37 +27,41 @@ function ReportToast({report, close}: {report: SyncReport | null, close: () => v
     if (!report) return null;
     // check if close
     return (
-        <div className="toast">
-            <div className={"alert " + (report.kind === "idle" ? "alert-info" : report.kind === "uploaded" ? "alert-success" : report.kind === "merge-request" ? "alert-warning" : report.kind === "failed" ? "alert-error" : "")}>
-                {
-                    report.kind === "idle" ?
-                        <>No changes to sync</>
-                    : report.kind === "uploaded" ?
-                        <>Uploaded {report.notes.length} notes</>
-                    : report.kind === "merge-request" ?
-                        <>
-                            Uploaded {report.notes.length} notes. Encountered merge conflicts. Please review
-                            <a
-                                href={report.url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="link link-secondary"
-                            >Merge Request</a>
-                            .
-                        </>
-                    : report.kind === "failed" ?
-                        <>
-                            Sync for {report.notes.length} notes failed: {report.error}
-                        </>
-                    : null
-                }
-                {(report.kind === "merge-request" || report.kind === "failed") &&
-                    <button className="btn btn-sm btn-ghost" onClick={close}>
-                        <i className="iconify mdi--close size-6"></i>
-                    </button>
-                }
-            </div>
-        </div>
+        createPortal(
+
+            <div className="toast z-50">
+                <div className={"alert " + (report.kind === "idle" ? "alert-info" : report.kind === "uploaded" ? "alert-success" : report.kind === "merge-request" ? "alert-warning" : report.kind === "failed" ? "alert-error" : "")}>
+                    {
+                        report.kind === "idle" ?
+                            <>No changes to sync</>
+                        : report.kind === "uploaded" ?
+                            <>Uploaded {report.notes.length} notes</>
+                        : report.kind === "merge-request" ?
+                            <>
+                                Uploaded {report.notes.length} notes. Encountered merge conflicts. Please review
+                                <a
+                                    href={report.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="link link-warning-content"
+                                >Merge Request</a>
+                                .
+                            </>
+                        : report.kind === "failed" ?
+                            <>
+                                Sync for {report.notes.length} notes failed: {report.error}
+                            </>
+                        : null
+                    }
+                    {(report.kind === "merge-request" || report.kind === "failed") &&
+                        <button className="btn btn-sm btn-ghost" onClick={close}>
+                            <i className="iconify mdi--close size-6"></i>
+                        </button>
+                    }
+                </div>
+            </div>,
+            document.body
+        )
     )
 }
 

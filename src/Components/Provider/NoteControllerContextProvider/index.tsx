@@ -36,20 +36,11 @@ export default function NotesStateContextProvider({ children }: { children: Reac
             const controller = ensureController(activeRepository);
             return controller.getNote(noteRef);
         },
-        saveNote: async (name: string, slug: string, content_?: string) => {
-            const content = content_ || "";
+        saveNote: async (note: Note) => {
             const controller = ensureController(activeRepository);
-            const note = Note.create(name, slug, content);
-            if (note.success) {
-                await controller.saveNote(note.value);
-            } else {
-                setError(note.error);
-            }
-            return note;
-        },
-        saveNoteObject: async (note: Note) => {
-            const controller = ensureController(activeRepository);
-            return controller.saveNote(note);
+            console.log("Saving note object:", note);
+            await controller.saveNote(note);
+            return note
         },
         syncAll: async () => {
             const controller = ensureController(activeRepository);
