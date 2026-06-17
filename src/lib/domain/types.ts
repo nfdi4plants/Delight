@@ -46,6 +46,25 @@ export type NoteRef = {
 };
 
 /**
+ * A lightweight handle to a binary asset file in a repository, as returned by
+ * listing a note's `assets/` folder — before its bytes are fetched. Mirrors
+ * {@link NoteRef}: it is a pointer, not the content, so a note can carry its
+ * asset list without moving the (potentially large) bytes over the network.
+ * Resolve it into a full `Asset` (see `domain/asset.ts`) with the controller's
+ * `getAsset`, which downloads the bytes on demand and caches them.
+ *
+ * Like `NoteRef`, it carries no repository id: a ref is always resolved through
+ * the repo-bound controller that produced it, and the local cache keys every
+ * entry by `[repoId, path]`, so the same path in two repos never collides.
+ */
+export type AssetRef = {
+	/** File name, e.g. "photo.png". */
+	name: string;
+	/** Path within the repository, e.g. "notes/sub/meeting/assets/photo.png". */
+	path: string;
+};
+
+/**
  * A GitLab merge request, as opened when a save is diverted around an edit
  * conflict. Only the fields the app surfaces are modelled.
  */

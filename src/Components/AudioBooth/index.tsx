@@ -3,6 +3,7 @@ import Asset from "../../lib/domain/asset";
 import type Note from "../../lib/domain/note";
 import { createTranscriber, isTranscriptionSupported, type Transcriber } from "../../lib/speech";
 import useErrorContext from "../../Contexts/ErrorContext";
+import useNoteControllerContext from "../../Contexts/NoteControllerContext";
 
 type AudioBoothProps = {
     // The note the memo is attached to. Its `assetsFolder` is the base
@@ -62,6 +63,7 @@ export default function AudioBooth({ note, setNote, onCapture }: AudioBoothProps
     const transcriberRef = useRef<Transcriber | null>(null);
     const transcriptFinalRef = useRef("");
     const { setError } = useErrorContext();
+    const { attachAsset } = useNoteControllerContext();
 
     const canTranscribe = useMemo(() => isTranscriptionSupported(), []);
     const canRecord = typeof MediaRecorder !== "undefined";
@@ -144,7 +146,7 @@ export default function AudioBooth({ note, setNote, onCapture }: AudioBoothProps
         setTranscriptText("");
     }, []);
 
-    const accept = useCallback(() => {
+    const accept = useCallback(async () => {
         if (!preview) return;
         const name = filename.trim();
         if (name.length === 0) {
@@ -157,12 +159,12 @@ export default function AudioBooth({ note, setNote, onCapture }: AudioBoothProps
             setError(audio.error);
             return;
         }
-        const addedAudio = note.addAsset(audio.value);
+        const addedAudio = await attachAsset(note, audio.value);
         if (!addedAudio.success) {
             setError(addedAudio.error);
             return;
         }
-        setNote(note); // trigger re-render with the new asset
+        setNote(addedAudio.value); // trigger re-render with the new asset
         onCapture?.(audio.value);
 
         // Save the transcript as a sibling .txt, named after the audio file.
@@ -174,10 +176,10 @@ export default function AudioBooth({ note, setNote, onCapture }: AudioBoothProps
             if (!txt.success) {
                 setError(txt.error);
             } else {
-                const addedTxt = note.addAsset(txt.value);
+                const addedTxt = await attachAsset(note, txt.value);
                 if (!addedTxt.success) setError(addedTxt.error);
                 else {
-                    setNote(note); // trigger re-render with the new asset
+                    setNote(addedTxt.value); // trigger re-render with the new asset
                     onCapture?.(txt.value);
                 }
             }
@@ -185,7 +187,7 @@ export default function AudioBooth({ note, setNote, onCapture }: AudioBoothProps
 
         setPreview(null);
         setTranscriptText("");
-    }, [preview, filename, transcriptText, saveTranscript, note, onCapture, setError]);
+    }, [preview, filename, transcriptText, saveTranscript, note, onCapture, setError, setNote, attachAsset]);
 
     // Tick the elapsed-time counter while recording.
     useEffect(() => {
