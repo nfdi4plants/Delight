@@ -9,6 +9,7 @@ import type Note from "../../lib/domain/note";
 import type { Result } from "../../lib/domain/result";
 import BaseModal from "../BaseModal";
 import type Asset from "../../lib/domain/asset";
+import type { AssetRef } from "../../lib/domain/types";
 import piexif from "piexifjs";
 import { createPortal } from "react-dom";
 
@@ -354,7 +355,7 @@ function AssetsListImageItem({asset}: {asset: Asset}) {
             )}
             <div
                 key={asset.path}
-                className="flex items-start gap-3 rounded-lg border border-base-300 p-2"
+                className="flex items-start gap-3 rounded-lg border border-base-300 p-2 cursor-pointer hover:bg-base-200"
                 onClick={() => setOpen(true)}
             >
                 {state.url && (
@@ -382,7 +383,10 @@ function AssetsListImageItem({asset}: {asset: Asset}) {
     );
 }
 
-function AssetsListItem({asset}: {asset: Asset}) {
+// Render a resolved asset (bytes in hand) with the viewer that fits its MIME
+// type. The MIME type is only known once the blob is downloaded, so this is
+// reached from {@link AssetsListItem} after the user resolves the pointer.
+function ResolvedAssetItem({asset}: {asset: Asset}) {
     return (
         (
             asset.type.startsWith("audio/") ?
@@ -407,6 +411,89 @@ function AssetsListItem({asset}: {asset: Asset}) {
     )
 }
 
+// A small icon class inferred from the file extension — all we can know about
+// an asset before its bytes are downloaded (the GitLab tree listing carries
+// neither MIME type nor size).
+function iconForPath(path: string): string {
+    const ext = path.split(".").pop()?.toLowerCase() ?? "";
+    if (["png", "jpg", "jpeg", "gif", "webp", "svg", "avif"].includes(ext)) return "mdi--image";
+    if (["mp3", "wav", "ogg", "m4a", "aac", "flac"].includes(ext)) return "mdi--music";
+    if (["mp4", "mov", "webm", "mkv", "avi"].includes(ext)) return "mdi--video";
+    if (["txt", "md", "csv", "json", "log"].includes(ext)) return "mdi--file-document";
+    return "mdi--file";
+}
+
+// A single asset row. It starts as a pointer ({@link AssetRef}) and shows a
+// download action; only when the user resolves it are the bytes fetched (cached
+// after the first time) and handed to {@link ResolvedAssetItem} for display.
+function AssetsListItem({assetRef}: {assetRef: AssetRef}) {
+    const {getAsset, isAvailableLocally} = useNoteControllerContext();
+    const [asset, setAsset] = React.useState<Asset | null>(null);
+    // True until the initial presence check resolves: until then we don't know
+    // whether the bytes are local, so we avoid flashing a "download" hint.
+    const [checking, setChecking] = React.useState(true);
+    const [loading, setLoading] = React.useState(false);
+    const [error, setError] = React.useState<string | null>(null);
+
+    // On mount, if the bytes are already local (just captured, downloaded
+    // before, or cached from an earlier load) resolve them straight away — the
+    // same `getAsset` path, just served from cache, no network. Only a genuine
+    // cache miss falls through to the download button.
+    React.useEffect(() => {
+        let cancelled = false;
+        (async () => {
+            if (await isAvailableLocally(assetRef)) {
+                const result = await getAsset(assetRef);
+                if (!cancelled && result.success) setAsset((current) => current ?? result.value);
+            }
+            if (!cancelled) setChecking(false);
+        })();
+        return () => { cancelled = true; };
+    }, [assetRef, isAvailableLocally, getAsset]);
+
+    const load = async () => {
+        if (loading) return;
+        setLoading(true);
+        setError(null);
+        const result = await getAsset(assetRef);
+        setLoading(false);
+        if (!result.success) {
+            setError(result.error);
+            return;
+        }
+        setAsset(result.value);
+    };
+
+    if (asset) return <ResolvedAssetItem asset={asset} />;
+
+    const busy = checking || loading;
+    return (
+        <button
+            type="button"
+            onClick={load}
+            disabled={busy}
+            className="flex w-full items-center gap-3 rounded-lg border border-base-300 p-2 text-left hover:bg-base-200 cursor-pointer disabled:cursor-default disabled:opacity-60"
+        >
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded bg-base-200">
+                <i className={`iconify ${iconForPath(assetRef.path)} size-8`}></i>
+            </div>
+            <div className="min-w-0 flex-1">
+                <div className="truncate font-mono text-xs" title={assetRef.path}>
+                    {assetRef.name}
+                </div>
+                <div className="text-[11px] opacity-60">
+                    {error
+                        ? <span className="text-error">{error}</span>
+                        : checking ? "Checking…" : "Tap to download"}
+                </div>
+            </div>
+            {busy
+                ? <span className="loading loading-spinner loading-sm"></span>
+                : <i className="iconify mdi--download size-5 opacity-60"></i>}
+        </button>
+    );
+}
+
 /**
  * Button to open modal, displaying list of assets with metadata and display options, as well as option to delete assets. For photos, display metadata such as dimensions and file size, and display options such as "display full width" or "display as thumbnail". For audio recordings, display metadata such as duration and file size, and display options such as "display with audio player" or "display as download link"
  * @param param0 
@@ -428,8 +515,8 @@ function AssetsButton({note}: {note: Note}) {
                             <div className="text-2xl opacity-60">No assets found</div>
                             <div className="text-sm opacity-40">Add photos or audio recordings to your note using the buttons in the dock</div>
                         </div>
-                    ) : note.assets.map(asset => (  
-                        <AssetsListItem key={asset.path} asset={asset} />
+                    ) : note.assets.map(assetRef => (
+                        <AssetsListItem key={assetRef.path} assetRef={assetRef} />
                     ))}
                 </div>
             </BaseModal>

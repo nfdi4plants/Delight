@@ -11,6 +11,17 @@ export type GitlabToken = Brand<string, 'GitlabToken'>;
 // These mirror the relevant subset of the GitLab REST API responses
 // (snake_case, as the wire delivers them) — no separate mapping layer.
 
+/**
+ * The currently-authenticated GitLab user, as returned by the `/user`
+ * endpoint. Only the fields the app surfaces are modelled.
+ */
+export type GitlabUser = {
+	id: number;
+	username: string;
+	name: string;
+	avatar_url: string | null;
+};
+
 export type Repository = {
 	id: number;
 	name: string;
@@ -31,6 +42,25 @@ export type NoteRef = {
 	/** File name, e.g. "meeting.md". */
 	name: string;
 	/** Path within the repository, e.g. "notes/sub/meeting.md". */
+	path: string;
+};
+
+/**
+ * A lightweight handle to a binary asset file in a repository, as returned by
+ * listing a note's `assets/` folder — before its bytes are fetched. Mirrors
+ * {@link NoteRef}: it is a pointer, not the content, so a note can carry its
+ * asset list without moving the (potentially large) bytes over the network.
+ * Resolve it into a full `Asset` (see `domain/asset.ts`) with the controller's
+ * `getAsset`, which downloads the bytes on demand and caches them.
+ *
+ * Like `NoteRef`, it carries no repository id: a ref is always resolved through
+ * the repo-bound controller that produced it, and the local cache keys every
+ * entry by `[repoId, path]`, so the same path in two repos never collides.
+ */
+export type AssetRef = {
+	/** File name, e.g. "photo.png". */
+	name: string;
+	/** Path within the repository, e.g. "notes/sub/meeting/assets/photo.png". */
 	path: string;
 };
 

@@ -3,6 +3,7 @@ import Asset from "../../lib/domain/asset";
 import type Note from "../../lib/domain/note";
 import { embedExif, type GeoCoords } from "../../lib/exif";
 import useErrorContext from "../../Contexts/ErrorContext";
+import useNoteControllerContext from "../../Contexts/NoteControllerContext";
 
 // Resolve the device's current location, or `null` if unavailable or denied.
 // Never rejects, so a missing fix degrades to "no location" rather than an
@@ -61,6 +62,7 @@ export default function PhotoBooth({
     const videoRef = useRef<HTMLVideoElement>(null);
     const streamRef = useRef<MediaStream | null>(null);
     const { setError } = useErrorContext();
+    const { attachAsset } = useNoteControllerContext();
 
     // The accepted-but-not-yet-saved still, as an object URL for preview.
     const [preview, setPreview] = useState<{ url: string; blob: Blob } | null>(null);
@@ -186,7 +188,7 @@ export default function PhotoBooth({
         startCamera();
     }, [startCamera]);
 
-    const accept = useCallback(() => {
+    const accept = useCallback(async () => {
         if (!preview) return;
         const name = filename.trim();
         if (name.length === 0) {
@@ -201,7 +203,7 @@ export default function PhotoBooth({
             return;
         }
 
-        const added = note.addAsset(asset.value);
+        const added = await attachAsset(note, asset.value);
         if (!added.success) {
             setError(added.error);
             return;
@@ -210,7 +212,7 @@ export default function PhotoBooth({
 
         onCapture?.(asset.value);
         setPreview(null);
-    }, [preview, filename, note, onCapture, setError, setNote]);
+    }, [preview, filename, note, onCapture, setError, setNote, attachAsset]);
 
     // The folder shown read-only beside the editable file name.
     const folderHint = useMemo(() => `${note.assetsFolder}/`, [note]);

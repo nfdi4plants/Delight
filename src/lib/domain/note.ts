@@ -1,7 +1,6 @@
 import { type Result, Success, Failure } from './result';
 import { parseYaml, asString, isRecord, type Yaml } from './yaml';
-import type { NoteRef } from './types';
-import Asset, { type AssetSnapshot } from './asset';
+import type { NoteRef, AssetRef } from './types';
 
 // ── Domain types ───────────────────────────────────────────────────
 // A note's frontmatter `tags` are ISA-style ontology annotations (the
@@ -24,12 +23,13 @@ export type OntologyAnnotation = {
 };
 
 /**
- * A note's full persistent state as a plain, structured-cloneable object — the
+ * A note's full persistent state as a plain, JSON/clone-storable object — the
  * form used to cache a note locally (e.g. in IndexedDB) and rehydrate it.
- * (Asset bytes are `Blob`s, so it is clone-storable, not JSON-serializable.)
- * Unlike `toMarkdown`, it also carries the `baseCommitId` concurrency token,
- * so a cached note saves with the same conflict guarantees as a freshly
- * loaded one.
+ * Assets are stored as lightweight {@link AssetRef} pointers, not bytes: the
+ * asset blobs live in their own cache and are downloaded on demand, so a note
+ * snapshot stays small. Unlike `toMarkdown`, it also carries the `baseCommitId`
+ * concurrency token, so a cached note saves with the same conflict guarantees
+ * as a freshly loaded one.
  */
 export type NoteSnapshot = {
 	slug: string;
@@ -38,7 +38,7 @@ export type NoteSnapshot = {
 	/** Calendar day, `YYYY-MM-DD`. */
 	date: string;
 	tags: OntologyAnnotation[];
-	assets: AssetSnapshot[];
+	assets: AssetRef[];
 	baseCommitId: string | null;
 };
 
@@ -146,7 +146,13 @@ export default class Note {
 	content: string;
 	date: Date;
 	tags: OntologyAnnotation[];
-	assets: Asset[];
+	/**
+	 * Pointers to this note's assets, not their bytes. Populated when the note
+	 * is loaded (by listing its `assets/` folder, unioned with any locally-added
+	 * assets) and resolved into actual blobs on demand via the controller's
+	 * `getAsset`.
+	 */
+	assets: AssetRef[];
 	readonly slug: string;
 
 	// The commit this note's content was last in sync with on the server: set
@@ -161,7 +167,7 @@ export default class Note {
 		content: string,
 		date: Date,
 		tags: OntologyAnnotation[],
-		assets: Asset[],
+		assets: AssetRef[],
 		slug: string
 	) {
 		this.title = title;
@@ -216,7 +222,7 @@ export default class Note {
 		markdown: string,
 		slug: string,
 		fallbackDate: Date,
-		assets: Asset[] = []
+		assets: AssetRef[] = []
 	): Result<Note> {
 		if (!SLUG_PATTERN.test(slug)) return Failure(`"${slug}" is not a valid note slug.`);
 
@@ -290,11 +296,17 @@ export default class Note {
 		return `${lines.join('\n')}\n\n${this.content.trim()}\n`;
 	}
 
-	addAsset(asset: Asset): Result<Note> {
-  	if (!asset.path.startsWith(`${this.assetsFolder}/`)) {
-  		return Failure(`Asset path "${asset.path}" is not within the note's asset folder.`);
-  	}
-	  this.assets.push(asset);
+	/**
+	 * Add a pointer to an asset that lives under this note's `assets/` folder.
+	 * Takes an {@link AssetRef}, not the bytes — the blob is persisted separately
+	 * by the controller; the note only records that the asset belongs to it.
+	 */
+	addAsset(asset: AssetRef): Result<Note> {
+		if (!asset.path.startsWith(`${this.assetsFolder}/`)) {
+			return Failure(`Asset path "${asset.path}" is not within the note's asset folder.`);
+		}
+		if (this.assets.some((existing) => existing.path === asset.path)) return Success(this);
+		this.assets.push(asset);
 		return Success(this);
 	}
 
@@ -338,7 +350,7 @@ export default class Note {
 			content: this.content,
 			date: formatDate(this.date),
 			tags: this.tags,
-			assets: this.assets.map((a) => a.toSnapshot()),
+			assets: this.assets.map((a) => ({ ...a })),
 			baseCommitId: this.baseCommitId
 		};
 	}
@@ -360,7 +372,7 @@ export default class Note {
 			snapshot.content,
 			date.value,
 			structuredClone(snapshot.tags),
-			snapshot.assets.map((a) => Asset.fromSnapshot(a)),
+			snapshot.assets.map((a) => ({ ...a })),
 			snapshot.slug
 		);
 		note.baseCommitId = snapshot.baseCommitId;

@@ -1,4 +1,5 @@
 import { type Result, Success, Failure } from "./result";
+import type { AssetRef } from "./types";
 
 /**
  * An asset's persistent form. The bytes live in a `Blob` — a structured-clone
@@ -55,6 +56,15 @@ export default class Asset {
   /** File name without its directory, e.g. "photo.png". */
   get basename(): string {
     return this.path.split("/").pop() ?? this.path;
+  }
+
+  /**
+   * A lightweight pointer to this asset — its place in a note's asset list and
+   * the handle the controller's `getAsset` resolves back into these bytes.
+   * Carries no content, so it is cheap to store on a note and move with it.
+   */
+  toRef(): AssetRef {
+    return { name: this.basename, path: this.path };
   }
 
   /** Whether these bytes already exist on the server (vs. added locally). */
