@@ -7,7 +7,6 @@ import usePageContext from "../../Contexts/PageContext";
 import { useErrorContext } from "../../Contexts/ErrorContext";
 import BackButton from "../BackButton";
 import SyncButton from "../SyncButton";
-import ActionBar from "../ActionBar";
 
 function CreateNoteModal({isOpen, setIsOpen}: {isOpen: boolean, setIsOpen: (isOpen: boolean) => void}) {
     const [input, setInput] = React.useState("")
