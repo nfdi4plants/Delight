@@ -120,19 +120,30 @@ async function readText(response: Response): Promise<Result<string>> {
  * GitLab reports the next page number via the `x-next-page` header; an
  * empty value means we have reached the last page.
  */
-async function apiGetAll<T>(path: string, token: GitlabToken): Promise<Result<T[]>> {
+async function apiGetAll<T>(
+	path: string,
+	token: GitlabToken,
+	options: { emptyOn404?: boolean } = {}
+): Promise<Result<T[]>> {
 	const sep = path.includes('?') ? '&' : '?';
 	const items: T[] = [];
 
 	for (let page = 1; ; page++) {
-		const result = await apiGet(`${path}${sep}per_page=100&page=${page}`, token);
-		if (!result.success) return Failure(result.error);
+		const response = await request('GET', `${path}${sep}per_page=100&page=${page}`, token);
+		if (!response.success) return Failure(response.error);
 
-		const parsed = await readJson<T[]>(result.value);
+		// A 404 means the path itself does not exist. Callers that opt in treat
+		// this as "nothing there" rather than an error.
+		if (options.emptyOn404 && response.value.status === 404) return Success(items);
+
+		const checked = await checkResponse(response.value);
+		if (!checked.success) return Failure(checked.error);
+
+		const parsed = await readJson<T[]>(checked.value);
 		if (!parsed.success) return Failure(parsed.error);
 		items.push(...parsed.value);
 
-		if (!result.value.headers.get('x-next-page')) break;
+		if (!checked.value.headers.get('x-next-page')) break;
 	}
 
 	return Success(items);
@@ -163,7 +174,8 @@ export function listRepos(
 
 /**
  * List all `*.md` files under the repository's `notes/` folder, recursing
- * into subfolders.
+ * into subfolders. A repository without a `notes/` folder is not an error:
+ * it simply yields an empty list.
  */
 export async function listNotes(
 	token: GitlabToken,
@@ -171,7 +183,8 @@ export async function listNotes(
 ): Promise<Result<NoteRef[]>> {
 	const tree = await apiGetAll<TreeEntry>(
 		`/projects/${repo.id}/repository/tree?path=notes&recursive=true`,
-		token
+		token,
+		{ emptyOn404: true }
 	);
 	if (!tree.success) return Failure(tree.error);
 
