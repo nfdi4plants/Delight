@@ -343,10 +343,10 @@ export default class NoteController {
 		const branch = this.repo.default_branch ?? 'main';
 		const commitMessage =
 			notes.length === 0
-				? 'Sync assets'
+				? 'Sync assets [delight]'
 				: notes.length === 1
-					? `Save note ${notes[0].name}`
-					: `Sync ${notes.length} notes`;
+					? `Save note ${notes[0].name} [delight]`
+					: `Sync ${notes.length} notes [delight]`;
 
 		const direct = await commitFiles(this.#token, this.repo, { branch, commitMessage, actions });
 		if (direct.kind === 'committed') return { kind: 'uploaded', notes, commitId: direct.commitId };
